@@ -1,4 +1,6 @@
-# Cogent
+# RHA-RAG
+
+[English](README.md) | [中文](README_zh.md)
 
 **Reasoning-Heavy Agentic RAG** — upload your documents, ask research questions, and watch an AI agent retrieve, grade, reason logically, verify deductions, and produce cited answers. Built with [LangGraph](https://langchain-ai.github.io/langgraph/).
 
@@ -85,7 +87,7 @@ Drop these in `data/local/` or upload via the web UI:
 .
 ├── server.py              FastAPI web server + API
 ├── run.py                 CLI pipeline (output → run.log)
-├── cogent/                Core package
+├── rha_rag/                Core package
 │   ├── llm.py             ChatDeepSeekFixed + model config
 │   ├── pipeline.py        Document loaders, OCR (+ .ocr.md caching), embeddings, vector store
 │   └── graph.py           LangGraph nodes + assembly

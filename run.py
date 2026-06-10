@@ -1,5 +1,5 @@
 """
-run.py — Cogent CLI
+run.py — RHA-RAG CLI
 
 Usage:
   python run.py "What is a compact set?"
@@ -31,7 +31,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 print("=" * 60)
-print(f"Cogent CLI — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"RHA-RAG CLI — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print("=" * 60)
 
 # ── Question ──────────────────────────────────────────────────
@@ -47,9 +47,9 @@ else:
 print(f"Question: {question}")
 
 # ── Pipeline (shared with server) ─────────────────────────────
-from cogent.llm import models, create_llms
-from cogent.pipeline import load_all_documents, create_vectorstore
-from cogent.graph import build_graph
+from rha_rag.llm import models, create_llms
+from rha_rag.pipeline import load_all_documents, create_vectorstore
+from rha_rag.graph import build_graph
 
 # Check keys
 missing = [m.api_key for _, m in models.items() if not os.environ.get(m.api_key)]

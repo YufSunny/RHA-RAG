@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from langchain_core.documents import Document
-from cogent.llm import models
+from rha_rag.llm import models
 
 
 # ═══════════════════════════════════════════════════════════════
