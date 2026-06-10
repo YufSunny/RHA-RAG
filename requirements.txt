@@ -1,26 +1,26 @@
 # Core Pipeline
-langgraph>=0.2.0
-langchain>=0.3.0
-langchain-text-splitters>=0.3.0
-langchain-deepseek>=0.1.0
-langchain-openai>=0.2.0
-langchain-core>=0.3.0
-pydantic>=2.0.0
+langgraph>=1.2.0
+langchain>=1.3.0
+langchain-text-splitters>=1.1.0
+langchain-deepseek>=1.1.0
+langchain-openai>=1.2.0
+langchain-core>=1.4.0
+pydantic>=2.13.0
 
 # Document Processing
-beautifulsoup4>=4.12.0
-pymupdf>=1.24.0
-python-multipart>=0.0.9
+beautifulsoup4>=4.15.0
+pymupdf>=1.27.0
+python-multipart>=0.0.30
 
 # APIs
-openai>=1.50.0
-zai>=0.2.0
+openai>=2.41.0
+zai-sdk>=0.2.0
 
 # Web Server
-fastapi>=0.115.0
-uvicorn>=0.30.0
+fastapi>=0.136.0
+uvicorn>=0.49.0
 jinja2>=3.1.0
 
 # Utilities
-requests>=2.32.0
-tiktoken>=0.7.0
+requests>=2.34.0
+tiktoken>=0.13.0
