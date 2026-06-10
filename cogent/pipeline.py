@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from langchain_core.documents import Document
-from researcher.llm import models
+from cogent.llm import models
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -26,8 +26,30 @@ def _ocr_client():
     return _ocr_client_cache
 
 
+def _ocr_cache_path(file_path: str) -> Path:
+    """Return the .ocr.md cache path for a given file."""
+    p = Path(file_path)
+    return p.with_name(p.name + ".ocr.md")
+
+
+def _read_cache(file_path: str) -> str | None:
+    """Return cached OCR text if newer than the source file. None otherwise."""
+    cache = _ocr_cache_path(file_path)
+    if cache.exists() and cache.stat().st_mtime >= Path(file_path).stat().st_mtime:
+        return cache.read_text(encoding="utf-8")
+    return None
+
+
+def _write_cache(file_path: str, text: str):
+    """Save OCR result to cache file."""
+    _ocr_cache_path(file_path).write_text(text, encoding="utf-8")
+
+
 def ocr_image(file_path: str) -> str:
-    """OCR a JPG/PNG via data URI. Returns markdown text."""
+    """OCR a JPG/PNG via data URI. Returns markdown text. Cached to .ocr.md."""
+    cached = _read_cache(file_path)
+    if cached is not None:
+        return cached
     data = Path(file_path).read_bytes()
     ext = Path(file_path).suffix.lower()
     mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png"}[ext.lstrip(".")]
@@ -36,6 +58,7 @@ def ocr_image(file_path: str) -> str:
         model="glm-ocr",
         file=f"data:image/{mime};base64,{b64}",
     )
+    _write_cache(file_path, resp.md_results)
     return resp.md_results
 
 
@@ -45,7 +68,7 @@ def ocr_pdf(
     dpi: int = 200,
     progress_callback=None,
 ) -> str:
-    """Render each PDF page as PNG, OCR individually. Returns combined markdown.
+    """Render each PDF page as PNG, OCR individually. Cached to .ocr.md.
 
     Args:
         path: Path to PDF file.
@@ -53,6 +76,10 @@ def ocr_pdf(
         dpi: Render resolution.
         progress_callback: Called with (current, total) for progress reporting.
     """
+    cached = _read_cache(path)
+    if cached is not None:
+        return cached
+
     import fitz
     doc = fitz.open(path)
     total = min(len(doc), max_pages) if max_pages else len(doc)
@@ -69,7 +96,9 @@ def ocr_pdf(
         if progress_callback:
             progress_callback(i + 1, total)
     doc.close()
-    return "\n\n".join(results)
+    text = "\n\n".join(results)
+    _write_cache(path, text)
+    return text
 
 
 # ═══════════════════════════════════════════════════════════════

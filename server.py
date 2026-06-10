@@ -1,5 +1,5 @@
 """
-server.py — Researcher Web Interface
+server.py — Cogent Web Interface
 
 FastAPI server providing:
   - Document upload & management
@@ -39,7 +39,7 @@ console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE))
 
 logging.basicConfig(level=logging.DEBUG, handlers=[file_handler, console_handler], force=True)
-log = logging.getLogger("researcher")
+log = logging.getLogger("cogent")
 
 # Redirect stdout/stderr to UTF-8 so Unicode math symbols work
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -51,7 +51,7 @@ for name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
     ulog.handlers = [file_handler, console_handler]
     ulog.setLevel(logging.DEBUG if "access" not in name else logging.INFO)
 
-log.info("── Researcher server starting ──")
+log.info("── Cogent server starting ──")
 
 # ── App setup ─────────────────────────────────────────────────
 from fastapi import FastAPI, UploadFile, File, Form, Request
@@ -116,7 +116,7 @@ async def lifespan(app):
         handler.close()
 
 
-app = FastAPI(title="Researcher", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Cogent", version="0.1.0", lifespan=lifespan)
 
 
 # ── Request logging middleware ──────────────────────────────
@@ -135,9 +135,9 @@ async def log_requests(request: Request, call_next):
 
 
 # ── Global state (lazy init) ──────────────────────────────────
-from researcher.llm import models, create_llms
-from researcher.pipeline import load_all_documents, create_vectorstore
-from researcher.graph import build_graph
+from cogent.llm import models, create_llms
+from cogent.pipeline import load_all_documents, create_vectorstore
+from cogent.graph import build_graph
 
 _retriever = None
 _graph = None

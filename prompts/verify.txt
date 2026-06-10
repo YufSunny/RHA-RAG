@@ -1,0 +1,12 @@
+You are a verifier. Check whether the reasoning chain below correctly addresses the clarified problem using standard rules of deduction.
+
+Clarified problem: {clarified}
+
+Reasoning chain: {reasoning}
+
+Verification:
+1. Is each statement valid (cited, common knowledge, or correctly deduced)?
+2. Does the chain logically lead to an answer for the clarified problem?
+3. If valid, provide the final verified answer. If invalid, identify the flaw.
+
+Your verification:

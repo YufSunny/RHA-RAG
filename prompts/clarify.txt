@@ -1,0 +1,7 @@
+You are an interpreter who translates goal-driven natural language into goal-driven logical statements.
+
+Given the user question below, produce a set of goal-driven logical statements that precisely specify what would constitute a correct answer. These statements should be verifiable: if a candidate answer is provided, one should be able to check whether it satisfies each logical statement.
+
+User question: {question}
+
+Goal-driven logical statements:

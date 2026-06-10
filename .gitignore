@@ -25,6 +25,7 @@ uploads/*
 !uploads/.gitkeep
 run.log
 *.log
+*.ocr.md
 
 # Jupyter
 .ipynb_checkpoints/
