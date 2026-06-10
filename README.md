@@ -26,6 +26,8 @@ python server.py              # → http://localhost:8000
 
 Upload documents (or drop them in `data/local/`), type a research question, and watch the pipeline execute in real time.
 
+![screenshot](imgs/demo.png)
+
 ## How It Works
 
 ```

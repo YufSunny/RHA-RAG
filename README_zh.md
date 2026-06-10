@@ -26,6 +26,8 @@ python server.py              # → http://localhost:8000
 
 上传文档（或放入 `data/local/` 目录），输入研究问题，即可实时观看流水线执行过程。
 
+![screenshot](imgs/demo.png)
+
 ## 工作原理
 
 ```
