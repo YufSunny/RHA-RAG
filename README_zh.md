@@ -5,7 +5,7 @@
 **推理增强型智能 RAG** — 上传文档，提出问题，观察 AI 智能体逐步执行检索、评分、逻辑推理、演绎验证，最终生成带引用的答案。基于 [LangGraph](https://langchain-ai.github.io/langgraph/) 构建。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python 3.12+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 
 <hr>
 
