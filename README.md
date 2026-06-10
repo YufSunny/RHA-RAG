@@ -3,7 +3,7 @@
 **Reasoning-Heavy Agentic RAG** — upload your documents, ask research questions, and watch an AI agent retrieve, grade, reason logically, verify deductions, and produce cited answers. Built with [LangGraph](https://langchain-ai.github.io/langgraph/).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 
 <hr>
 
