@@ -1,0 +1,60 @@
+SET THEORY: A PRIMER
+====================
+
+Sets and Elements
+-----------------
+
+A SET is a well-defined collection of distinct objects, called ELEMENTS or MEMBERS.
+
+Notation: a in S means "a is an element of S"
+
+Basic Set Operations
+--------------------
+
+Union: A U B = {x : x in A or x in B}
+
+Intersection: A ^ B = {x : x in A and x in B}
+
+Difference: A \\ B = {x : x in A and x not in B}
+
+Complement: A^c = {x : x not in A}
+
+Power Set
+---------
+
+The POWER SET of A, denoted P(A), is the set of all subsets of A.
+
+If |A| = n, then |P(A)| = 2^n.
+
+Cartesian Product
+-----------------
+
+A x B = {(a, b) : a in A, b in B}
+
+Relations and Functions
+-----------------------
+
+A RELATION from A to B is a subset of A x B.
+
+A FUNCTION f: A -> B is a relation where each element of A is paired with exactly one element of B.
+
+Cardinalities
+-------------
+
+Two sets have the SAME CARDINALITY if there exists a bijection between them.
+
+A set is COUNTABLE if it has the same cardinality as the natural numbers N.
+
+The real numbers R are UNCOUNTABLE (proved by Cantor's diagonal argument).
+
+Axioms of ZFC
+-------------
+
+1. Extensionality
+2. Pairing
+3. Union
+4. Power Set
+5. Infinity
+6. Replacement
+7. Regularity
+8. Choice (Axiom of Choice)
