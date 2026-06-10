@@ -1,101 +1,136 @@
-# Researcher: An AI Assistant for Research
+# Researcher
 
-This project demonstrates how to create an AI assistant for reasoning-heavy tasks using agentic RAG over local and fetched resources.
+**Reasoning-Heavy Agentic RAG Research Assistant** — a LangGraph-based AI system that retrieves documents from a local knowledge base and performs structured logical reasoning to produce verified, cited answers.
 
-This is the branch based on LangGraph.
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 
-## Overview
+## Quick Start
 
-The Researcher agent follows a structured reasoning pipeline (see SOPs in [reasoner/](reasoner/)):
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Set API keys
+export ZAI_API_KEY="your-zai-key"       # GLM-OCR
+export QWEN_API_KEY="your-qwen-key"     # Embeddings
+export OPENAI_API_KEY="your-deepseek-key"  # LLM
+
+# 3. Start web server
+python server.py
+# Open http://localhost:8000
+
+# Or run CLI pipeline
+python run.py   # output logged to run.log
+```
+
+## Pipeline
 
 ```
-User Question → Clarify → Retrieve → Grade → Reason → Verify → Answer
+User Question
+    │
+    ▼
+clarify          ── Translate NL question into goal-driven logical statements
+    │
+    ▼
+generate_query   ── LLM decides: search knowledge base or answer directly
+    │
+    ├──[no tool call]── END
+    │
+    ▼
+retrieve         ── Semantic search over local vector store (ToolNode)
+    │
+    ▼
+grade            ── Assess document relevance with structured output
+    │
+    ▼
+reason           ── Build logical proof chain (@cite / @common / @MP / @TA)
+    │
+    ▼
+verify           ── Validate each deduction step against inference rules
+    │
+    ▼
+generate_answer  ── Produce final answer with explicit citations
 ```
-
-1. **Clarify** — Translates the natural language question into goal-driven logical statements.
-2. **Retrieve** — Uses semantic search over the local knowledge base to fetch relevant documents.
-3. **Grade** — Scores retrieved documents for relevance; rewrites the query if documents are irrelevant.
-4. **Reason** — Performs structured logical reasoning using retrieved context and citations.
-5. **Verify** — Validates the reasoning chain against standard deduction rules.
-6. **Answer** — Generates the final response with explicit citations.
 
 ## Architecture
 
-- **Document Processing**: Local resources (PDF, images, HTML, markdown, txt, docx) are pre-processed into plain text. PDFs and images are processed via [GLM-OCR](https://www.z.ai/).
-- **Embeddings**: Documents are embedded using [Qwen text embedding v4](https://dashscope.aliyun.com/).
-- **Vector Store**: In-memory vector store for semantic retrieval.
-- **LLM**: [Claude Sonnet 4.6](https://www.anthropic.com/) via kimi API for reasoning and generation.
-- **Orchestration**: [LangGraph](https://langchain-ai.github.io/langgraph/) state graph with conditional edges for agentic retrieval and reasoning.
+| Component | Technology | Provider |
+|-----------|-----------|----------|
+| Orchestration | [LangGraph](https://langchain-ai.github.io/langgraph/) | — |
+| LLM | `deepseek-v4-pro` via `ChatDeepSeekFixed` | [DeepSeek](https://api.deepseek.com) |
+| Embeddings | `text-embedding-v4` (batch ≤10) | [Qwen/DashScope](https://dashscope.aliyun.com) |
+| OCR | `glm-ocr` via `ZaiClient` (data URI format) | [Z.ai](https://www.z.ai/) |
+| Vector Store | `InMemoryVectorStore` | LangChain |
+| PDF Render | PyMuPDF `get_pixmap(dpi=200)` | — |
+| Web Server | FastAPI + SSE streaming | — |
+
+### Supported File Types
+
+| Extension | Processing |
+|-----------|-----------|
+| `.txt`, `.md` | Direct read |
+| `.html`, `.htm` | BeautifulSoup text extraction |
+| `.pdf` | GLM-OCR (rendered as PNG per-page) |
+| `.jpg`, `.png` | GLM-OCR |
+| `.docx` | PyMuPDF text extraction |
 
 ## Project Structure
 
 ```
-.
-├── code/
-│   └── main.ipynb              # Main implementation notebook
-├── data/
-│   ├── local/                  # Local documents (PDF, images, txt, etc.)
-│   └── fetched/                # Web-fetched resources
-├── reasoner/
-│   ├── trial_prompt.md         # SOP-001: Clarification → Solving → Verification pipeline
-│   ├── writer.md               # SOP-002: Research paper writing procedure
-│   └── onlineSearch.md         # SOP-003: Online literature search procedure
-└── reference/
-    └── buildAgenticRAGwithLangGraph.html  # LangGraph tutorial reference
+Researcher/
+├── server.py                # FastAPI web server
+├── run.py                   # CLI pipeline (output to run.log)
+├── researcher/              # Core package
+│   ├── llm.py               # ChatDeepSeekFixed, model config
+│   ├── pipeline.py          # Document loaders, OCR, embeddings
+│   └── graph.py             # LangGraph nodes & assembly
+├── static/                  # Frontend assets
+├── templates/               # HTML templates
+├── uploads/                 # User-uploaded documents
+├── data/local/              # Pre-loaded documents
+├── reasoner/                # SOPs for reasoning procedure
+│   ├── trial_prompt.md      # SOP-001: Clarify → Solve → Verify
+│   ├── writer.md            # SOP-002: Research paper writing
+│   └── onlineSearch.md      # SOP-003: Online literature search
+├── requirements.txt
+├── .env.example
+├── LICENSE
+└── README.md
 ```
 
-## Setup
+## API Endpoints
 
-### Prerequisites
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Web UI |
+| `GET` | `/api/status` | System status (ready, docs, chunks, errors) |
+| `GET` | `/api/files` | List uploaded documents |
+| `POST` | `/api/upload` | Upload documents (multipart) |
+| `DELETE` | `/api/files/{name}` | Delete a document |
+| `POST` | `/api/reindex` | Force re-index all documents |
+| `POST` | `/api/chat` | Ask a question (SSE streaming) |
 
-- Python 3.10+
-- API keys for:
-  - **Z.ai** (GLM-OCR): `ZAI_API_KEY`
-  - **DashScope** (Qwen Embeddings): `QWEN_API_KEY`
-  - **Kimi / OpenAI-compatible** (Claude LLM): `OPENAI_API_KEY`
+## DeepSeek V4 Patch
 
-### Installation
+`ChatDeepSeekFixed` patches three incompatibilities with DeepSeek V4 thinking mode:
+
+1. **`reasoning_content` preservation** — required across tool-call round-trips; LangChain strips it
+2. **List content serialization** — tool/assistant messages with list-type content must be serialized to strings
+3. **`tool_choice` demotion** — thinking mode rejects `{"type":"function",...}`; we force `"auto"`
+
+See: [langchain-ai/langchain#37178](https://github.com/langchain-ai/langchain/issues/37178)
+
+## Dev
 
 ```bash
-pip install -U langgraph langchain langchain-text-splitters langchain-openai beautifulsoup4 requests pymupdf openai zai
+# Local tests (no API keys needed)
+mamba activate langchain && python test_local.py
+
+# Full pipeline test (needs all API keys)
+mamba activate langchain && python run.py
 ```
 
-### Configuration
+## License
 
-The notebook will prompt for API keys on first run. Alternatively, set them as environment variables:
-
-```bash
-export ZAI_API_KEY="your-zai-key"
-export QWEN_API_KEY="your-qwen-key"
-export OPENAI_API_KEY="your-openai-key"
-```
-
-## Usage
-
-1. Place documents in `data/local/` (supported: `.txt`, `.md`, `.html`, `.pdf`, `.jpg`, `.png`, `.docx`).
-2. Open `code/main.ipynb` in Jupyter.
-3. Run all cells to build the agentic RAG graph.
-4. Invoke the graph with a research question:
-
-```python
-for chunk in graph.stream({"messages": [{"role": "user", "content": "Your research question here"}]}):
-    for node, update in chunk.items():
-        print("Update from node", node)
-        update["messages"][-1].pretty_print()
-```
-
-## Supported File Types
-
-| Extension | Processing Method |
-|-----------|-------------------|
-| `.txt`, `.md` | Direct text read |
-| `.html`, `.htm` | BeautifulSoup text extraction |
-| `.pdf` | GLM-OCR (page-by-page) |
-| `.jpg`, `.png` | GLM-OCR |
-| `.docx` | PyMuPDF text extraction |
-
-## Dev Notes
-
-- The reasoning layer is implemented as LangGraph nodes (`clarify_question`, `reason`, `verify`) using prompts from `reasoner/trial_prompt.md`.
-- Document grading uses structured output (Pydantic) for binary relevance scoring.
-- Query rewriting triggers when retrieved documents are judged irrelevant, looping back to retrieval.
+MIT — see [LICENSE](LICENSE).

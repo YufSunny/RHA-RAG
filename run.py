@@ -181,9 +181,13 @@ def _ocr_pdf(path: str, max_pages: int = None, dpi: int = 200) -> str:
     return "\n\n".join(results)
 
 # -- File loaders ----------------------------------------------
+def _safe_path(p: str) -> str:
+    """Convert to forward-slash form so \\r \\t etc. do not become escape sequences."""
+    return Path(p).as_posix()
+
 def load_text(path: str) -> list[Document]:
     return [Document(page_content=Path(path).read_text(encoding="utf-8"),
-                     metadata={"source": path})]
+                     metadata={"source": _safe_path(path), "name": Path(path).name})]
 
 def load_html(path: str) -> list[Document]:
     text = Path(path).read_text(encoding="utf-8")
@@ -193,14 +197,14 @@ def load_html(path: str) -> list[Document]:
     text = soup.get_text(separator="\n")
     lines = (l.strip() for l in text.splitlines())
     return [Document(page_content="\n".join(l for l in lines if l),
-                     metadata={"source": path})]
+                     metadata={"source": _safe_path(path), "name": Path(path).name})]
 
 def load_docx(path: str) -> list[Document]:
     import fitz
     doc = fitz.open(path)
     text = "\n\n".join(pg.get_text() for pg in doc)
     doc.close()
-    return [Document(page_content=text, metadata={"source": path})]
+    return [Document(page_content=text, metadata={"source": _safe_path(path), "name": Path(path).name})]
 
 def load_pdf(path: str) -> list[Document]:
     import fitz
@@ -211,14 +215,14 @@ def load_pdf(path: str) -> list[Document]:
     size_mb = p.stat().st_size / (1024 * 1024)
     print(f"    {p.name}: {n_pages} pages, {size_mb:.1f}MB → OCR")
     text = _ocr_pdf(path)
-    return [Document(page_content=text, metadata={"source": path})]
+    return [Document(page_content=text, metadata={"source": _safe_path(path), "name": p.name, "pages": n_pages})]
 
 def load_image(path: str) -> list[Document]:
     p = Path(path)
     size_mb = p.stat().st_size / (1024 * 1024)
     print(f"    {p.name}: {size_mb:.1f}MB → OCR")
     text = _ocr_image(path)
-    return [Document(page_content=text, metadata={"source": path})]
+    return [Document(page_content=text, metadata={"source": _safe_path(path), "name": p.name})]
 
 # -- Execute loading -------------------------------------------
 docs: list[Document] = []
