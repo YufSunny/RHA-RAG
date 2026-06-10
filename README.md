@@ -135,7 +135,7 @@ Copy `.env.example` to `.env`:
 
 Without keys, the server still starts — upload files, then set keys and click **Re-index**.
 
-## DeepSeek V4 Patch
+## Notes on DeepSeek V4 Patch
 
 `ChatDeepSeekFixed` patches three incompatibilities with DeepSeek V4 thinking mode:
 
