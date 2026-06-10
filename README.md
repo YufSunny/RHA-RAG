@@ -92,8 +92,8 @@ Drop these in `data/local/` or upload via the web UI:
 ├── prompts/               LLM prompt templates (loaded at runtime)
 ├── templates/
 │   └── index.html         Web UI (dark theme, streaming)
-├── data/local/            Pre-loaded documents (sample set included)
-├── uploads/               User-uploaded documents
+├── data/local/            Drop documents here
+├── uploads/               Or upload via the web UI
 ├── requirements.txt
 ├── .env.example
 └── LICENSE
