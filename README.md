@@ -6,7 +6,7 @@ This is the branch based on LangGraph.
 
 ## Overview
 
-The Researcher agent follows a structured reasoning pipeline:
+The Researcher agent follows a structured reasoning pipeline (see SOPs in [reasoner/](reasoner/)):
 
 ```
 User Question → Clarify → Retrieve → Grade → Reason → Verify → Answer
@@ -37,9 +37,9 @@ User Question → Clarify → Retrieve → Grade → Reason → Verify → Answe
 │   ├── local/                  # Local documents (PDF, images, txt, etc.)
 │   └── fetched/                # Web-fetched resources
 ├── reasoner/
-│   ├── trial_prompt.md         # Reasoning pipeline prompts (clarify → solve → verify)
-│   ├── writer.md               # Research paper writing prompt
-│   └── onlineSearch.md         # Online literature search prompt
+│   ├── trial_prompt.md         # SOP-001: Clarification → Solving → Verification pipeline
+│   ├── writer.md               # SOP-002: Research paper writing procedure
+│   └── onlineSearch.md         # SOP-003: Online literature search procedure
 └── reference/
     └── buildAgenticRAGwithLangGraph.html  # LangGraph tutorial reference
 ```
