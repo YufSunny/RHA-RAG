@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RHA-RAG</title>
+<!-- Markdown + LaTeX rendering (CDN — no local install needed) -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <style>
   :root {
     --bg: #0d1117;
@@ -295,6 +299,52 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* KaTeX dark-theme overrides */
+  .katex { color: var(--text); font-size: 1.05em; }
+  .katex .mord, .katex .mopen, .katex .mclose, .katex .mbin, .katex .mrel,
+  .katex .mpunct, .katex .minner, .katex .mord.text { color: var(--text); }
+  .katex .mfrac { color: var(--text); }
+  .katex-display { overflow-x: auto; overflow-y: hidden; }
+
+  /* Rendered content inside node cards */
+  .node-body.rendered { font-size: 15px; line-height: 1.8; }
+  .node-body.rendered p { margin: 0 0 1em; }
+  .node-body.rendered p:last-child { margin-bottom: 0; }
+  .node-body.rendered ul, .node-body.rendered ol { margin: 0 0 1em; padding-left: 1.5em; }
+  .node-body.rendered li { margin: 0.25em 0; }
+  .node-body.rendered h1, .node-body.rendered h2, .node-body.rendered h3,
+  .node-body.rendered h4, .node-body.rendered h5, .node-body.rendered h6 {
+    margin: 1em 0 0.5em; font-weight: 600; color: var(--accent);
+  }
+  .node-body.rendered h1 { font-size: 1.4em; }
+  .node-body.rendered h2 { font-size: 1.25em; }
+  .node-body.rendered h3 { font-size: 1.1em; }
+  .node-body.rendered code {
+    background: rgba(88,166,255,0.1); padding: 1px 5px; border-radius: 4px;
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+    font-size: 0.9em;
+  }
+  .node-body.rendered pre {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 16px; overflow-x: auto; margin: 0 0 1em;
+  }
+  .node-body.rendered pre code {
+    background: none; padding: 0; border-radius: 0; font-size: 0.85em;
+  }
+  .node-body.rendered blockquote {
+    border-left: 3px solid var(--accent); margin: 0 0 1em; padding: 4px 0 4px 16px;
+    color: var(--muted);
+  }
+  .node-body.rendered hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+  .node-body.rendered a { color: var(--accent); }
+  .node-body.rendered table {
+    border-collapse: collapse; width: 100%; margin: 0 0 1em;
+  }
+  .node-body.rendered th, .node-body.rendered td {
+    border: 1px solid var(--border); padding: 6px 12px; text-align: left;
+  }
+  .node-body.rendered th { background: var(--surface); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -311,7 +361,7 @@
 
   <div class="status-bar">
     <div><span class="dot orange" id="status-dot"></span> <span id="status-text">Initializing...</span></div>
-    <div style="margin-left:14px;color:var(--muted)"><span id="status-docs">-</span> docs, <span id="status-chunks">-</span> chunks</div>
+    <div style="margin-left:14px;color:var(--muted)"><span id="status-docs">-</span> files, <span id="status-chunks">-</span> chunks</div>
   </div>
 
   <button id="reindex-btn" onclick="reindex()">Re-index All</button>
@@ -396,6 +446,44 @@ async function del(name) {
   await refreshFiles(); await refreshStatus();
 }
 
+// ── Markdown + LaTeX rendering ────────────────────────────────
+function renderContent(text) {
+  if (!text) return '';
+  // Step 1: extract LaTeX and replace with placeholders so markdown
+  // parsing doesn't mangle math delimiters.
+  const placeholders = [];
+
+  // Display math: $$...$$  and  \[...\]
+  text = text.replace(/\$\$([\s\S]*?)\$\$/g, function(_, m) {
+    placeholders.push(katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }));
+    return '\x01D' + (placeholders.length - 1) + '\x01';
+  });
+  text = text.replace(/\\\[([\s\S]*?)\\\]/g, function(_, m) {
+    placeholders.push(katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }));
+    return '\x01D' + (placeholders.length - 1) + '\x01';
+  });
+  // Inline math: $...$  and  \(...\)
+  text = text.replace(/\\\((.+?)\\\)/g, function(_, m) {
+    placeholders.push(katex.renderToString(m.trim(), { throwOnError: false }));
+    return '\x01I' + (placeholders.length - 1) + '\x01';
+  });
+  text = text.replace(/\$(.+?)\$/g, function(_, m) {
+    placeholders.push(katex.renderToString(m.trim(), { throwOnError: false }));
+    return '\x01I' + (placeholders.length - 1) + '\x01';
+  });
+
+  // Step 2: render markdown
+  let html = marked.parse(text);
+
+  // Step 3: restore KaTeX placeholders
+  html = html.replace(/\x01D(\d+)\x01/g, function(_, idx) { return placeholders[idx]; });
+  html = html.replace(/\x01I(\d+)\x01/g, function(_, idx) {
+    return '<span class="katex-inline">' + placeholders[idx] + '</span>';
+  });
+
+  return html;
+}
+
 async function reindex() {
   const btn = document.getElementById('reindex-btn');
   btn.textContent = 'Indexing...'; btn.disabled = true;
@@ -427,8 +515,18 @@ async function refreshStatus() {
   const s = await res.json();
   const dot = document.getElementById('status-dot'), text = document.getElementById('status-text');
   dot.className = 'dot ' + (s.ready ? 'green' : s.missing_keys.length ? 'red' : 'orange');
-  text.textContent = s.ready ? 'Ready' : s.missing_keys.length ? 'Missing: ' + s.missing_keys.join(', ') : (s.errors.join('; ') || 'No documents');
-  document.getElementById('status-docs').textContent = s.documents;
+
+  if (s.ready) {
+    text.textContent = 'Ready';
+  } else if (s.missing_keys.length) {
+    text.textContent = 'Missing: ' + s.missing_keys.join(', ');
+  } else if (s.files > 0) {
+    text.textContent = s.files + ' file(s) — ask a question to index';
+  } else {
+    text.textContent = s.errors.join('; ') || 'No documents';
+  }
+
+  document.getElementById('status-docs').textContent = s.files;
   document.getElementById('status-chunks').textContent = s.chunks;
 }
 
@@ -518,10 +616,11 @@ async function ask() {
         if (cards[node]) {
           const c = cards[node];
           c.card.style.display = '';
-          c.body.textContent = event.content;
+          c.body.innerHTML = renderContent(event.content);
           c.body.classList.add('open');
+          c.body.classList.add('rendered');
           c.card.querySelector('.node-header').classList.add('open');
-          statusBody.textContent = '';
+          statusBody.innerHTML = '';
           chat.scrollTop = chat.scrollHeight;
         }
       }

@@ -275,12 +275,21 @@ def _init_pipeline():
 # API endpoints
 # ═══════════════════════════════════════════════════════════════
 
+
+def _count_files() -> int:
+    """Return the number of supported files on disk (always up-to-date)."""
+    from rha_rag.pipeline import discover_files
+
+    return len(discover_files(str(UPLOAD_DIR))) + len(discover_files(str(DATA_DIR)))
+
+
 @app.get("/api/status")
 async def api_status():
     """Return current system status."""
     missing = _ensure_keys()
     return {
         "ready": _graph is not None,
+        "files": _count_files(),
         "documents": _doc_count,
         "chunks": _chunk_count,
         "missing_keys": missing,
@@ -326,6 +335,7 @@ async def api_upload(files: list[UploadFile] = File(...)):
 
     return {
         "saved": saved,
+        "files": _count_files(),
         "documents": _doc_count,
         "chunks": _chunk_count,
     }
