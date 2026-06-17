@@ -85,6 +85,12 @@ def create_llms():
         temperature=0,
         api_key=os.environ[models["llm"].api_key],
         api_base=models["llm"].base_url,
+        # DeepSeek occasionally drops connections ("Server disconnected
+        # without sending a response"). The OpenAI client retries
+        # transient errors up to max_retries; bump from the default 2 so a
+        # double-disconnect doesn't surface as a hard graph error.
+        max_retries=5,
+        timeout=300,
     )
 
     return ChatDeepSeekFixed(**llm_kwargs), ChatDeepSeekFixed(**llm_kwargs)

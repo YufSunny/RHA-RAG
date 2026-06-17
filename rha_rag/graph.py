@@ -6,6 +6,20 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 
 
+class RhaState(MessagesState):
+    """Pipeline state.
+
+    `messages` carries the conversation: prior Q&A (prepended by the server for
+    multi-turn memory) followed by the current turn's messages. `question` is
+    the current turn's question (used by nodes that previously read
+    `messages[0]`, which no longer holds once history is prepended). `history`
+    is a condensed prior-Q&A string injected into the clarify/generate prompts.
+    """
+
+    question: str
+    history: str
+
+
 # ═══════════════════════════════════════════════════════════════
 # Prompts (loaded from prompts/*.txt)
 # ═══════════════════════════════════════════════════════════════
@@ -31,24 +45,24 @@ class GradeDocuments(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 def make_clarify_question(response_model):
-    def clarify_question(state: MessagesState):
-        question = state["messages"][0].content
-        prompt = CLARIFY_PROMPT.format(question=question)
+    def clarify_question(state: RhaState):
+        question = state["question"]
+        prompt = CLARIFY_PROMPT.format(question=question, history=state.get("history", ""))
         response = response_model.invoke([{"role": "user", "content": prompt}])
         return {"messages": [HumanMessage(content=f"CLARIFIED: {response.content}")]}
     return clarify_question
 
 
 def make_generate_query_or_respond(response_model, retriever_tool):
-    def generate_query_or_respond(state: MessagesState):
+    def generate_query_or_respond(state: RhaState):
         response = response_model.bind_tools([retriever_tool]).invoke(state["messages"])
         return {"messages": [response]}
     return generate_query_or_respond
 
 
 def make_grade_documents(grader_model):
-    def grade_documents(state: MessagesState):
-        question = state["messages"][0].content
+    def grade_documents(state: RhaState):
+        question = state["question"]
         context = state["messages"][-1].content
         prompt = GRADE_PROMPT.format(question=question, context=context)
         response = grader_model.with_structured_output(GradeDocuments).invoke(
@@ -61,7 +75,7 @@ def make_grade_documents(grader_model):
 
 
 def make_reason(response_model):
-    def reason(state: MessagesState):
+    def reason(state: RhaState):
         clarified = ""
         for msg in reversed(state["messages"]):
             content = getattr(msg, "content", "")
@@ -69,7 +83,7 @@ def make_reason(response_model):
                 clarified = content
                 break
         if not clarified:
-            clarified = state["messages"][0].content
+            clarified = state["question"]
         context = state["messages"][-1].content
         prompt = REASON_PROMPT.format(clarified=clarified, context=context)
         response = response_model.invoke([{"role": "user", "content": prompt}])
@@ -78,7 +92,7 @@ def make_reason(response_model):
 
 
 def make_verify(response_model):
-    def verify(state: MessagesState):
+    def verify(state: RhaState):
         clarified = ""
         reasoning_text = ""
         for msg in reversed(state["messages"]):
@@ -88,7 +102,7 @@ def make_verify(response_model):
             elif content.startswith("CLARIFIED:") and not clarified:
                 clarified = content
         if not clarified:
-            clarified = state["messages"][0].content
+            clarified = state["question"]
         prompt = VERIFY_PROMPT.format(clarified=clarified, reasoning=reasoning_text)
         response = response_model.invoke([{"role": "user", "content": prompt}])
         return {"messages": [HumanMessage(content=f"VERIFIED: {response.content}")]}
@@ -96,8 +110,8 @@ def make_verify(response_model):
 
 
 def make_generate_answer(response_model):
-    def generate_answer(state: MessagesState):
-        question = state["messages"][0].content
+    def generate_answer(state: RhaState):
+        question = state["question"]
         context = ""
         verified = ""
         for msg in reversed(state["messages"]):
@@ -109,7 +123,10 @@ def make_generate_answer(response_model):
         if not context:
             context = state["messages"][-1].content
         prompt = GENERATE_PROMPT.format(
-            question=question, context=context, verified=verified
+            question=question,
+            context=context,
+            verified=verified,
+            history=state.get("history", ""),
         )
         response = response_model.invoke([{"role": "user", "content": prompt}])
         return {"messages": [response]}
@@ -156,7 +173,7 @@ def build_graph(retriever, response_model, grader_model):
 
     retriever_tool = make_retriever_tool(retriever)
 
-    workflow = StateGraph(MessagesState)
+    workflow = StateGraph(RhaState)
 
     # Create nodes with model references
     workflow.add_node("clarify", make_clarify_question(response_model))
@@ -172,7 +189,7 @@ def build_graph(retriever, response_model, grader_model):
     workflow.add_edge("clarify", "generate_query")
 
     # Conditional: tool call or direct answer
-    def route_on_tool_calls(state: MessagesState):
+    def route_on_tool_calls(state: RhaState):
         last = state["messages"][-1]
         if getattr(last, "tool_calls", None):
             return "tools"

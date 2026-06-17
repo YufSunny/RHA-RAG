@@ -7,7 +7,7 @@ FastAPI server providing:
   - Web UI at http://localhost:8000
 
 Usage:
-  mamba activate langchain && python server.py
+  python server.py
   (or: uvicorn server:app --host 0.0.0.0 --port 8000)
 """
 
@@ -138,6 +138,8 @@ async def log_requests(request: Request, call_next):
 from rha_rag.llm import models, create_llms
 from rha_rag.pipeline import load_all_documents, create_vectorstore
 from rha_rag.graph import build_graph
+from config import MAX_HISTORY_TURNS
+from langchain_core.messages import HumanMessage, AIMessage
 
 _retriever = None
 _graph = None
@@ -146,6 +148,41 @@ _grader_model = None
 _doc_count = 0
 _chunk_count = 0
 _init_errors: list[str] = []
+
+# Per-session conversation memory: session_id -> [HumanMessage, AIMessage, ...].
+# Lives in process memory (cleared on restart). See config.MAX_HISTORY_TURNS.
+_conversations: dict[str, list] = {}
+
+
+def _capped_history(session_id: str | None) -> list:
+    """Return this session's prior messages, capped to MAX_HISTORY_TURNS pairs."""
+    if not session_id or MAX_HISTORY_TURNS <= 0:
+        return []
+    msgs = _conversations.get(session_id, [])
+    return msgs[-(MAX_HISTORY_TURNS * 2):]
+
+
+def _history_text(msgs: list) -> str:
+    """Render prior messages as a condensed 'Q: ... / A: ...' block."""
+    if not msgs:
+        return ""
+    lines = []
+    for m in msgs:
+        role = "Q" if getattr(m, "type", "") == "human" else "A"
+        lines.append(f"{role}: {m.content}")
+    return "\n".join(lines)
+
+
+def _extract_answer(results: list) -> str:
+    """Pull the turn's final answer out of the (node, content) stream."""
+    for name, content in reversed(results):
+        if name == "generate_answer" and content.strip():
+            return content
+    # Direct-answer case: generate_query answered without retrieving.
+    for name, content in reversed(results):
+        if name == "generate_query" and content.strip():
+            return content
+    return ""
 
 
 def _ensure_keys():
@@ -296,14 +333,20 @@ async def api_upload(files: list[UploadFile] = File(...)):
 
 @app.delete("/api/files/{name}")
 async def api_delete(name: str):
-    """Delete a file from uploads/. Index invalidated, rebuilds on next question."""
-    path = UPLOAD_DIR / name
-    if path.exists():
-        path.unlink()
-        global _index_dirty
-        _index_dirty = True
-        log.info(f"Delete: {name} removed, index invalidated")
-        return {"deleted": name}
+    """Delete a file from uploads/ or data/local/. Index invalidated, rebuilds on next question.
+
+    /api/files lists both directories, so deletion must search both — otherwise
+    files dropped into data/local/ (including leftover .ocr.md OCR caches) show
+    in the UI but 404 on delete.
+    """
+    for d in (UPLOAD_DIR, DATA_DIR):
+        path = d / name
+        if path.exists():
+            path.unlink()
+            global _index_dirty
+            _index_dirty = True
+            log.info(f"Delete: {name} removed from {d}, index invalidated")
+            return {"deleted": name}
     log.warning(f"Delete: {name} — not found")
     return JSONResponse({"error": "not found"}, status_code=404)
 
@@ -323,6 +366,19 @@ async def api_reindex():
     }
 
 
+@app.post("/api/clear")
+async def api_clear(request: Request):
+    """Clear a session's conversation memory."""
+    body = await request.json()
+    session_id = body.get("session_id")
+    if session_id and session_id in _conversations:
+        _conversations.pop(session_id, None)
+        log.info(f"Clear: session {session_id} history removed")
+        return {"cleared": session_id}
+    log.info(f"Clear: session {session_id} — nothing to clear")
+    return {"cleared": None}
+
+
 @app.post("/api/chat")
 async def api_chat(request: Request):
     """Stream the graph execution as SSE events.
@@ -333,9 +389,16 @@ async def api_chat(request: Request):
     t0 = datetime.now()
     body = await request.json()
     question = body.get("question", "").strip()
-    log.info(f"Chat: question=\"{question[:80]}{'...' if len(question) > 80 else ''}\"")
+    session_id = body.get("session_id")
+    log.info(f"Chat: question=\"{question[:80]}{'...' if len(question) > 80 else ''}\" session={session_id}")
     if not question:
         return JSONResponse({"error": "question is required"}, status_code=400)
+
+    # Build conversation history for this session (capped).
+    history_msgs = _capped_history(session_id)
+    history_text = _history_text(history_msgs)
+    if history_text:
+        log.info(f"Chat: {len(history_msgs)//2} prior turn(s) in context")
 
     # Lazy-init on first question (or when files changed)
     try:
@@ -363,7 +426,11 @@ async def api_chat(request: Request):
         def run_graph():
             results = []
             for chunk in _graph.stream(
-                {"messages": [{"role": "user", "content": question}]}
+                {
+                    "question": question,
+                    "history": history_text,
+                    "messages": history_msgs + [HumanMessage(content=question)],
+                }
             ):
                 for node_name, update in chunk.items():
                     msg = update["messages"][-1]
@@ -374,6 +441,15 @@ async def api_chat(request: Request):
 
         try:
             results = await loop.run_in_executor(None, run_graph)
+
+            # Persist this turn's Q&A into the session memory (capped).
+            answer = _extract_answer(results)
+            if session_id and answer:
+                hist = _conversations.setdefault(session_id, [])
+                hist.append(HumanMessage(content=question))
+                hist.append(AIMessage(content=answer))
+                _conversations[session_id] = hist[-(MAX_HISTORY_TURNS * 2):]
+
             for node_name, content in results:
                 event = json.dumps({
                     "node": node_name,

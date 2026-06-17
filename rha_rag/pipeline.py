@@ -242,6 +242,8 @@ class CustomEmbed(Embeddings):
         self.client = OpenAI(
             api_key=os.environ.get(models["embed"].api_key),
             base_url=models["embed"].base_url,
+            max_retries=5,
+            timeout=60,
         ).embeddings
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
@@ -257,12 +259,161 @@ class CustomEmbed(Embeddings):
         return res.data[0].embedding
 
 
+MILVUS_URI = "milvus.db"  # local file store via milvus-lite (no server needed)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Vector store — thin MilvusClient wrapper (no ORM path)
+#
+# langchain-milvus 0.3.3 reaches the legacy pymilvus ORM ``Collection`` API
+# internally, which is incompatible with pymilvus 2.6.x + milvus-lite 3.0
+# (MilvusClient registers under a generated alias absent from the ORM
+# ``connections`` registry). This wrapper talks to ``MilvusClient`` directly,
+# sidestepping the ORM entirely.
+# ═══════════════════════════════════════════════════════════════
+
+from typing import Any
+from langchain_core.retrievers import BaseRetriever
+
+
+class _MilvusRetriever(BaseRetriever):
+    """LangChain retriever backed by a ``MilvusLiteStore``."""
+
+    store: Any
+    k: int = 5
+
+    def _get_relevant_documents(self, query, *, run_manager=None):  # type: ignore[override]
+        return self.store.similarity_search(query, k=self.k)
+
+
+def _try_wipe(uri: str) -> bool:
+    """Remove the milvus-lite db at ``uri`` if possible.
+
+    Returns True if the db is gone (or never existed). Returns False if it is
+    locked by another client in this process — milvus-lite holds a file lock
+    for the life of the process that ``close()`` does not release, so a wipe
+    only succeeds when no client is open yet (fresh process / first build).
+    """
+    import shutil
+
+    p = Path(uri)
+    if not p.exists():
+        return True
+    try:
+        if p.is_dir():
+            shutil.rmtree(p)
+        else:
+            p.unlink()
+        return True
+    except OSError:
+        return False
+
+
+class MilvusLiteStore:
+    """Minimal Milvus vector store over ``pymilvus.MilvusClient`` (milvus-lite).
+
+    Collection schema: pk (INT64, auto_id), text (VARCHAR), vector
+    (FLOAT_VECTOR), metadata (JSON — preserves source/name/pages). Metadata is
+    stored as a single JSON field so arbitrary per-chunk metadata round-trips
+    without dynamic-field output quirks.
+
+    Re-indexing strategy: with ``drop_old=True`` (the default, matching the
+    full-reindex behaviour) the whole ``milvus.db`` is wiped when no client
+    holds it; otherwise a uniquely-named collection is used. This avoids both
+    milvus-lite's process-lifetime file lock and its buggy ``drop_collection``
+    on Windows (``WinError 183`` renaming ``manifest.json``).
+    """
+
+    def __init__(
+        self,
+        embedding: "CustomEmbed",
+        uri: str = MILVUS_URI,
+        collection_name: str = "rha_rag",
+        drop_old: bool = True,
+    ):
+        from pymilvus import MilvusClient
+
+        self._embedding = embedding
+        self._uri = uri
+
+        if drop_old:
+            if _try_wipe(uri):
+                self._collection = collection_name
+            else:
+                import uuid
+
+                self._collection = f"{collection_name}_{uuid.uuid4().hex[:8]}"
+        else:
+            self._collection = collection_name
+
+        self._client = MilvusClient(uri=uri)
+
+        # Determine vector dimension from a probe embedding.
+        self._dim = len(embedding.embed_query("dimension probe"))
+
+        if not self._client.has_collection(self._collection):
+            self._create_collection()
+
+    def _create_collection(self):
+        from pymilvus import DataType
+
+        schema = self._client.create_schema(auto_id=True, enable_dynamic_field=False)
+        schema.add_field("pk", DataType.INT64, is_primary=True, auto_id=True)
+        schema.add_field("text", DataType.VARCHAR, max_length=65535)
+        schema.add_field("vector", DataType.FLOAT_VECTOR, dim=self._dim)
+        schema.add_field("metadata", DataType.JSON)
+
+        self._client.create_collection(self._collection, schema=schema)
+        index_params = self._client.prepare_index_params()
+        index_params.add_index(
+            field_name="vector", index_type="AUTOINDEX", metric_type="COSINE"
+        )
+        self._client.create_index(self._collection, index_params=index_params)
+        self._client.load_collection(self._collection)
+
+    def add_documents(self, documents: list[Document]) -> None:
+        """Embed (batched) and insert documents into the collection."""
+        if not documents:
+            return
+        texts = [d.page_content for d in documents]
+        vectors = self._embedding.embed_documents(texts)
+        rows = [
+            {"text": d.page_content, "vector": vec, "metadata": dict(d.metadata)}
+            for d, vec in zip(documents, vectors)
+        ]
+        self._client.insert(self._collection, rows)
+
+    def similarity_search(self, query: str, k: int = 5) -> list[Document]:
+        """Return the k most similar documents to ``query``."""
+        vec = self._embedding.embed_query(query)
+        res = self._client.search(
+            self._collection,
+            data=[vec],
+            limit=k,
+            output_fields=["text", "metadata"],
+        )
+        docs = []
+        for hit in res[0]:
+            entity = hit.get("entity", {})
+            text = entity.get("text", "")
+            meta = entity.get("metadata") or {}
+            docs.append(Document(page_content=text, metadata=meta))
+        return docs
+
+    def as_retriever(self, search_kwargs: dict | None = None):
+        k = (search_kwargs or {}).get("k", 5)
+        return _MilvusRetriever(store=self, k=k)
+
+
 def create_vectorstore(documents: list[Document]):
-    """Create an in-memory vector store from documents.
+    """Create a Milvus vector store from documents.
     Returns (vectorstore, retriever, chunk_count).
+
+    Uses milvus-lite with a local file (``milvus.db``), so no Milvus server is
+    required. ``drop_old=True`` rebuilds the collection from scratch on every
+    call, matching the existing full-reindex behaviour.
     """
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    from langchain_core.vectorstores import InMemoryVectorStore
 
     if not documents:
         return None, None, 0
@@ -272,6 +423,7 @@ def create_vectorstore(documents: list[Document]):
     )
     splits = splitter.split_documents(documents)
 
-    vectorstore = InMemoryVectorStore.from_documents(splits, embedding=CustomEmbed())
+    vectorstore = MilvusLiteStore(CustomEmbed(), drop_old=True)
+    vectorstore.add_documents(splits)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     return vectorstore, retriever, len(splits)

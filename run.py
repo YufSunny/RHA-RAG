@@ -50,6 +50,7 @@ print(f"Question: {question}")
 from rha_rag.llm import models, create_llms
 from rha_rag.pipeline import load_all_documents, create_vectorstore
 from rha_rag.graph import build_graph
+from langchain_core.messages import HumanMessage
 
 # Check keys
 missing = [m.api_key for _, m in models.items() if not os.environ.get(m.api_key)]
@@ -96,7 +97,7 @@ print(f"\n{'=' * 60}")
 print("Streaming graph...\n")
 
 for chunk in graph.stream(
-    {"messages": [{"role": "user", "content": question}]}
+    {"question": question, "history": "", "messages": [HumanMessage(content=question)]}
 ):
     for node_name, update in chunk.items():
         msg = update["messages"][-1]

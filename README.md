@@ -1,34 +1,88 @@
 # RHA-RAG
 
+**Reasoning-Heavy Agentic RAG**
+
 [English](README.md) | [中文](README_zh.md)
 
-**Reasoning-Heavy Agentic RAG** — upload your documents, ask research questions, and watch an AI agent retrieve, grade, reason logically, verify deductions, and produce cited answers. Built with [LangGraph](https://langchain-ai.github.io/langgraph/).
+Upload your documents, ask a research question, and watch an AI agent **retrieve, grade, reason in formal logical steps, verify the deduction, and produce a fully cited answer** — streamed live, node by node.
+
+Most RAG systems paste retrieved text into the prompt and let the model free-associate an answer. RHA-RAG doesn't. It forces the model to build an explicit **proof chain** — each step either cited from a source, marked as common knowledge, or deduced from prior steps — and then a separate **verifier** node checks that chain before any final answer is written. Every claim in the answer must cite a label from the source *and* the file it came from — whatever label the source uses (a Definition or Theorem number, a section number, a heading, …).
+
+Built with [LangGraph](https://langchain-ai.github.io/langgraph/), [Milvus Lite](https://milvus.io/docs), and [DeepSeek V4](https://api.deepseek.com).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
-
-<hr>
-
-## Quick Start
-
-```bash
-# 1. Install
-pip install -r requirements.txt
-
-# 2. Set API keys
-export ZAI_API_KEY="..."      # Z.ai — GLM-OCR
-export QWEN_API_KEY="..."     # Qwen/DashScope — embeddings
-export OPENAI_API_KEY="..."   # DeepSeek — LLM
-
-# 3. Launch
-python server.py              # → http://localhost:8000
-```
-
-Upload documents (or drop them in `data/local/`), type a research question, and watch the pipeline execute in real time.
+[![LangGraph](https://img.shields.io/badge/orchestration-LangGraph-orange.svg)](https://langchain-ai.github.io/langgraph/)
+[![Milvus](https://img.shields.io/badge/vectorstore-Milvus%20Lite-blueviolet.svg)](https://milvus.io/)
 
 ![screenshot](imgs/demo.png)
 
-## How It Works
+---
+
+## ✨ What makes it different
+
+| Ordinary RAG | RHA-RAG |
+|---|---|
+| Retrieve → stuff context → answer | Retrieve → **grade → reason → verify** → answer |
+| Answer is the model's first guess | Answer is the *verified* conclusion of a proof chain |
+| Citations optional / vague | Every claim cites a source **label + filename** (whatever the source uses) |
+| No check on the model's logic | A dedicated verifier audits each deduction step |
+| One shot | Agentic: the model decides whether to search at all |
+
+The reasoning chain uses a formal-proof notation:
+
+| Marker | Meaning |
+|---|---|
+| `@cite` | A statement quoted/cited from a source document |
+| `@common` | Common knowledge (textbook-standard) |
+| `@MP` | Modus ponens — deduced from prior steps |
+| `@TA` | Tautology / quantifier axiom |
+
+---
+
+## 🚀 Quick start
+
+```bash
+# 1. Install dependencies (Python 3.12+)
+pip install -r requirements.txt
+
+# 2. Set API keys
+cp .env.example .env   # then fill in the three keys below
+
+# 3. Launch
+python server.py       # → http://localhost:8000
+```
+
+Drop documents into `data/local/` (or upload via the web UI), type a research question, and watch the pipeline execute in real time.
+
+### Optional: isolate the install in a virtual environment
+
+```bash
+# Linux / macOS
+python3.12 -m venv .venv && source .venv/bin/activate
+
+# Windows (PowerShell)
+py -3.12 -m venv .venv ; .venv\Scripts\Activate.ps1
+
+# or with conda
+conda create -n rha-rag python=3.12 && conda activate rha-rag
+```
+
+Then `pip install -r requirements.txt` inside the activated environment.
+
+### API keys
+
+| Variable | Service | Purpose |
+|----------|---------|---------|
+| `ZAI_API_KEY` | [Z.ai](https://www.z.ai/) | GLM-OCR for PDF/image processing |
+| `QWEN_API_KEY` | [DashScope](https://dashscope.aliyun.com/) | Qwen `text-embedding-v4` embeddings |
+| `OPENAI_API_KEY` | [DeepSeek](https://api.deepseek.com) | DeepSeek V4 Pro LLM |
+
+Without keys, the server still starts — upload files, then set keys and click **Re-index**.
+
+---
+
+## 🧠 How it works
 
 ```
 User Question
@@ -37,15 +91,15 @@ User Question
 clarify          Translate natural language into goal-driven logical statements
     │
     ▼
-generate_query   LLM decides: search the knowledge base, or answer directly
+generate_query   LLM decides: search the knowledge base, or answer directly?
     │
     ├──(no tool call)── END
     │
     ▼
-retrieve         Semantic search over the local vector store
+retrieve         Semantic search over the local Milvus vector store
     │
     ▼
-grade            Assess document relevance with structured LLM output
+grade            Assess document relevance with structured LLM output (yes/no)
     │
     ▼
 reason           Build a logical proof chain (@cite / @common / @MP / @TA)
@@ -55,23 +109,64 @@ verify           Validate each deduction step against inference rules
     │
     ▼
 generate_answer  Produce the final answer with explicit source citations
+    │
+    ▼
+END
 ```
 
 Each node streams live to the web UI via Server-Sent Events.
 
-## Architecture
+**The flow in words:**
+
+1. **clarify** — reformats your question into a set of *verifiable* logical statements: "if a candidate answer is provided, one should be able to check whether it satisfies each statement." These become the spec the verifier checks against.
+2. **generate_query** — the agent either calls the retrieval tool or answers directly (this is the one conditional branch in the graph).
+3. **retrieve** — semantic search over Milvus (top-5 chunks).
+4. **grade** — a structured-output LLM grades the retrieved docs `yes`/`no` for relevance. It's told to treat documents as *data only* (prompt-injection hardening).
+5. **reason** — "you are a logician": build a proof chain where each step is `@cite`, `@common`, or deduced from prior steps.
+6. **verify** — audit the chain: is each statement valid? does it lead to an answer? Emit the verified answer, or flag the flaw.
+7. **generate_answer** — write the final answer, citing every claim with a label from the source (Definition, Theorem, section number, heading, …) and the source filename.
+
+> For the full construction story — file by file, with the design decisions and gotchas — see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## 💬 Conversation memory
+
+The chat is multi-turn: within a browser session, each question sees the prior
+Q&A, so follow-ups resolve references ("is *it* compact?" → "is a topological
+space compact?"), retrieval is conversation-aware, and answers can build on
+earlier turns.
+
+- **Per-browser session.** A session id is stored in `localStorage` (isolated
+  per tab, survives reload). History lives in server memory and is cleared on
+  restart.
+- **What sees history:** `clarify` (resolves follow-up references), the
+  retrieval decision (`generate_query`), and the final `generate_answer`. The
+  `reason`/`verify` proof chain stays grounded in retrieved sources only.
+- **Tunable depth.** The number of prior turns fed back is set by
+  `MAX_HISTORY_TURNS` in [config.py](config.py) (default 6; set 0 to disable).
+  Edit and restart.
+- **Clear chat.** The "Clear chat" button (or `POST /api/clear`) wipes the
+  session's history.
+
+---
+
+## 🏗️ Architecture
 
 | Component | Technology |
-|-----------|-----------|
-| Orchestration | LangGraph `StateGraph` (7 nodes, conditional edges) |
-| LLM | DeepSeek V4 Pro via `ChatDeepSeekFixed` |
-| Embeddings | Qwen `text-embedding-v4` (batch size ≤10) |
-| OCR | GLM-OCR via Z.ai (`ZaiClient`, data URI format) |
-| Vector Store | LangChain `InMemoryVectorStore` |
-| PDF Rendering | PyMuPDF (pages → PNG → OCR) |
-| Web Server | FastAPI + SSE streaming |
+|-----------|------------|
+| Orchestration | LangGraph `StateGraph` (7 nodes, 1 conditional edge, `RhaState`) |
+| Conversation memory | Per-session Q&A history (admin-tunable `MAX_HISTORY_TURNS`) |
+| LLM | DeepSeek V4 Pro via `ChatDeepSeekFixed` (thinking-mode patches) |
+| Embeddings | Qwen `text-embedding-v4` (batch size ≤ 10) |
+| Vector store | Milvus Lite (local file `milvus.db`, COSINE / AUTOINDEX) |
+| OCR | GLM-OCR via Z.ai (`ZaiClient`, data-URI format) |
+| PDF rendering | PyMuPDF (pages → PNG → OCR) |
+| Web server | FastAPI + SSE streaming |
 
-## Supported Documents
+---
+
+## 📄 Supported documents
 
 Drop these in `data/local/` or upload via the web UI:
 
@@ -79,43 +174,57 @@ Drop these in `data/local/` or upload via the web UI:
 |------|-----------|------------|
 | Plain text | `.txt` `.md` | Direct read |
 | HTML | `.html` `.htm` | BeautifulSoup text extraction |
-| Word | `.docx` | PyMuPDF |
+| Word | `.docx` | PyMuPDF text extraction |
 | PDF | `.pdf` | GLM-OCR (rendered page-by-page as PNG) |
 | Images | `.jpg` `.jpeg` `.png` | GLM-OCR |
 
-## Project Structure
+OCR results are cached to `<file>.ocr.md` (mtime-checked), so re-indexing is fast and only re-OCRs files that changed.
+
+---
+
+## 📁 Project structure
 
 ```
 .
-├── server.py              FastAPI web server + API
+├── server.py              FastAPI web server + REST API + SSE streaming
 ├── run.py                 CLI pipeline (output → run.log)
+├── config.py              Admin-tunable settings (e.g. MAX_HISTORY_TURNS)
 ├── rha_rag/                Core package
 │   ├── llm.py             ChatDeepSeekFixed + model config
-│   ├── pipeline.py        Document loaders, OCR (+ .ocr.md caching), embeddings, vector store
+│   ├── pipeline.py        Loaders, OCR (+ .ocr.md cache), embeddings, Milvus store
 │   └── graph.py           LangGraph nodes + assembly
 ├── prompts/               LLM prompt templates (loaded at runtime)
+│   ├── clarify.txt  generate.txt  grade.txt  reason.txt  verify.txt
 ├── templates/
 │   └── index.html         Web UI (dark theme, streaming)
 ├── data/local/            Drop documents here
 ├── uploads/               Or upload via the web UI
+├── test/                  Test corpus + test_milvus.py
 ├── requirements.txt
 ├── .env.example
-└── LICENSE
+└── ARCHITECTURE.md        Detailed step-by-step construction report
 ```
 
-## API Endpoints
+---
+
+## 🔌 API endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Web UI |
-| `GET` | `/api/status` | System status (`ready`, `documents`, `chunks`, `errors`) |
+| `GET` | `/api/status` | System status (`ready`, `documents`, `chunks`, `missing_keys`, `errors`) |
 | `GET` | `/api/files` | List all files in `uploads/` and `data/local/` |
 | `POST` | `/api/upload` | Upload documents (multipart form) |
-| `DELETE` | `/api/files/{name}` | Delete an uploaded file |
+| `DELETE` | `/api/files/{name}` | Delete a file from `uploads/` or `data/local/` |
 | `POST` | `/api/reindex` | Force rebuild the document index |
-| `POST` | `/api/chat` | Ask a question → SSE stream of node outputs |
+| `POST` | `/api/chat` | Ask a question → SSE stream of node outputs (multi-turn; send `session_id`) |
+| `POST` | `/api/clear` | Clear a session's conversation history |
 
-## CLI Usage
+`/api/chat` takes `{"question": "...", "session_id": "..."}` and streams `data: {"node": "...", "content": "...", "done": false}` events, ending with `{"node": "done", "done": true}`. The `session_id` keys the conversation memory (see [Conversation memory](#-conversation-memory)). Returns `503` with `details` if the pipeline isn't ready.
+
+---
+
+## 💻 CLI usage
 
 ```bash
 python run.py "What is a compact set?"
@@ -125,30 +234,38 @@ python run.py
 echo "Define continuity" | python run.py
 ```
 
-Output goes to both stdout and `run.log`. Same pipeline as the web server.
+Output goes to both stdout and `run.log`. Same pipeline as the web server — handy for debugging changes without booting the server.
 
-## Configuration
+---
 
-Copy `.env.example` to `.env`:
+## 🔬 Testing
 
-| Variable | Service | Purpose |
-|----------|---------|---------|
-| `ZAI_API_KEY` | [Z.ai](https://www.z.ai/) | GLM-OCR for PDF/image processing |
-| `QWEN_API_KEY` | [DashScope](https://dashscope.aliyun.com/) | Qwen text-embedding-v4 |
-| `OPENAI_API_KEY` | [DeepSeek](https://api.deepseek.com) | DeepSeek V4 Pro LLM |
+```bash
+python test/test_milvus.py
+```
 
-Without keys, the server still starts — upload files, then set keys and click **Re-index**.
+The test indexes the 6-document corpus in `test/` (covering every supported file type), retrieves for the question in `test/questions.txt`, asserts the right source is surfaced, then runs the full 7-node graph and asserts a non-empty cited answer.
 
-## Notes on DeepSeek V4 Patch
+---
+
+## 📝 Notes
+
+### DeepSeek V4 patch
 
 `ChatDeepSeekFixed` patches three incompatibilities with DeepSeek V4 thinking mode:
 
-1. **`reasoning_content` preservation** — required across tool-call round-trips; LangChain strips it
-2. **List content serialization** — tool/assistant messages with list content must be stringified
-3. **`tool_choice` demotion** — thinking mode rejects `{"type":"function",...}`; forced to `"auto"`
+1. **`reasoning_content` preservation** — required across tool-call round-trips; LangChain strips it.
+2. **List content serialization** — tool/assistant messages with list content must be stringified.
+3. **`tool_choice` demotion** — thinking mode rejects `{"type":"function",...}`; forced to `"auto"`.
 
-See [langchain-ai/langchain#37178](https://github.com/langchain-ai/langchain/issues/37178).
+Both LLM clients use `max_retries=5` so transient upstream disconnects ("Server disconnected without sending a response") are retried instead of failing the run. See [langchain-ai/langchain#37178](https://github.com/langchain-ai/langchain/issues/37178).
 
-## License
+### Why Milvus Lite (and not `langchain-milvus`)?
+
+The project uses a small `MilvusClient` wrapper (`MilvusLiteStore` in `rha_rag/pipeline.py`) over a local `milvus.db` file — no server to run. `langchain-milvus` 0.3.3 is incompatible with `pymilvus` 2.6.x (its ORM `Collection` path can't resolve the connection alias that `MilvusClient` registers). The wrapper talks to `MilvusClient` directly and sidesteps that. Full rationale in [ARCHITECTURE.md §7](ARCHITECTURE.md).
+
+---
+
+## 📜 License
 
 MIT — see [LICENSE](LICENSE).

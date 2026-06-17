@@ -139,8 +139,22 @@
     font-size: 13px;
     color: var(--muted);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
   .chat-header span { color: var(--text); font-weight: 600; }
+  .chat-header .spacer { flex: 1; }
+  #clear-btn {
+    padding: 5px 12px;
+    background: var(--surface);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  #clear-btn:hover { color: var(--red); border-color: var(--red); }
   #chat {
     flex: 1;
     min-height: 0;
@@ -308,6 +322,8 @@
 <main>
   <div class="chat-header">
     Pipeline: <span>clarify</span> &rarr; <span>retrieve</span> &rarr; <span>grade</span> &rarr; <span>reason</span> &rarr; <span>verify</span> &rarr; <span>answer</span>
+    <span class="spacer"></span>
+    <button id="clear-btn" onclick="clearChat()">Clear chat</button>
   </div>
 
   <div id="chat">
@@ -326,6 +342,13 @@
 
 <script>
 let isStreaming = false;
+
+// Per-browser-session conversation id. Survives reload, isolated per tab.
+let sessionId = localStorage.getItem('rha_session_id');
+if (!sessionId) {
+  sessionId = (crypto.randomUUID ? crypto.randomUUID() : 's-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+  localStorage.setItem('rha_session_id', sessionId);
+}
 
 async function init() { await refreshStatus(); await refreshFiles(); }
 init();
@@ -380,6 +403,22 @@ async function reindex() {
   const data = await res.json();
   btn.textContent = 'Re-index All'; btn.disabled = false;
   await refreshStatus();
+}
+
+// ── Clear chat ──────────────────────────────────────────────
+async function clearChat() {
+  if (isStreaming) return;
+  await fetch('/api/clear', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  const chat = document.getElementById('chat');
+  chat.innerHTML =
+    '<div class="empty-state" id="empty-state">' +
+      '<div class="big-icon">&#9670;</div>' +
+      '<div>Conversation cleared. Ask a research question</div>' +
+    '</div>';
 }
 
 // ── Status ──────────────────────────────────────────────────
@@ -448,7 +487,7 @@ async function ask() {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q }),
+      body: JSON.stringify({ question: q, session_id: sessionId }),
     });
 
     const reader = res.body.getReader();
