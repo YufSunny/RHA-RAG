@@ -361,7 +361,7 @@
 
   <div class="status-bar">
     <div><span class="dot orange" id="status-dot"></span> <span id="status-text">Initializing...</span></div>
-    <div style="margin-left:14px;color:var(--muted)"><span id="status-docs">-</span> files, <span id="status-chunks">-</span> chunks</div>
+    <div style="margin-left:14px;color:var(--muted)"><span id="status-docs">-</span> files</div>
   </div>
 
   <button id="reindex-btn" onclick="reindex()">Re-index All</button>
@@ -527,7 +527,6 @@ async function refreshStatus() {
   }
 
   document.getElementById('status-docs').textContent = s.files;
-  document.getElementById('status-chunks').textContent = s.chunks;
 }
 
 // ── Chat ────────────────────────────────────────────────────
@@ -633,6 +632,7 @@ async function ask() {
     btn.disabled = false; btn.textContent = 'Ask';
     input.value = '';
     chat.scrollTop = chat.scrollHeight;
+    refreshStatus().catch(() => {});  // update sidebar after index was built
   }
 }
 

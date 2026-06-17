@@ -8,12 +8,13 @@ Upload your documents, ask a research question, and watch an AI agent **retrieve
 
 Most RAG systems paste retrieved text into the prompt and let the model free-associate an answer. RHA-RAG doesn't. It forces the model to build an explicit **proof chain** — each step either cited from a source, marked as common knowledge, or deduced from prior steps — and then a separate **verifier** node checks that chain before any final answer is written. Every claim in the answer must cite a label from the source *and* the file it came from — whatever label the source uses (a Definition or Theorem number, a section number, a heading, …).
 
-Built with [LangGraph](https://langchain-ai.github.io/langgraph/), [Milvus Lite](https://milvus.io/docs), and [DeepSeek V4](https://api.deepseek.com).
+Built with [LangGraph](https://langchain-ai.github.io/langgraph/), [Milvus Lite](https://milvus.io/docs), [PostgreSQL](https://www.postgresql.org/), and [DeepSeek V4](https://api.deepseek.com).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/orchestration-LangGraph-orange.svg)](https://langchain-ai.github.io/langgraph/)
 [![Milvus](https://img.shields.io/badge/vectorstore-Milvus%20Lite-blueviolet.svg)](https://milvus.io/)
+[![Postgres](https://img.shields.io/badge/memory-PostgreSQL-336791.svg)](https://www.postgresql.org/)
 
 ![screenshot](imgs/demo.png)
 
@@ -42,43 +43,55 @@ The reasoning chain uses a formal-proof notation:
 
 ## 🚀 Quick start
 
-```bash
-# 1. Install dependencies (Python 3.12+)
-pip install -r requirements.txt
+### Prerequisites
 
-# 2. Set API keys
-cp .env.example .env   # then fill in the three keys below
+- **Python 3.12+** — any environment works (system, venv, conda).
+- **PostgreSQL** — for persistent conversation history. Install from
+  [postgresql.org](https://www.postgresql.org/download/) or your package
+  manager. At startup the server prompts for connection details; press Enter on
+  each to skip and use in-memory history. You can also pre-fill them in
+  [config.py](config.py) by uncommenting the `PG_*` lines.
 
-# 3. Launch
-python server.py       # → http://localhost:8000
-```
+### Configuration
 
-Drop documents into `data/local/` (or upload via the web UI), type a research question, and watch the pipeline execute in real time.
+All settings live in **[config.py](config.py)** — open it and fill in your values.
+The easiest way: uncomment the lines and paste your values directly. At startup
+the server prompts interactively for anything still missing — API keys one by
+one, then PostgreSQL host / port / user / password / database (enter blank on
+each to skip Postgres and use in-memory history). You can also set everything in
+your shell or a `.env` file:
 
-### Optional: isolate the install in a virtual environment
-
-```bash
-# Linux / macOS
-python3.12 -m venv .venv && source .venv/bin/activate
-
-# Windows (PowerShell)
-py -3.12 -m venv .venv ; .venv\Scripts\Activate.ps1
-
-# or with conda
-conda create -n rha-rag python=3.12 && conda activate rha-rag
-```
-
-Then `pip install -r requirements.txt` inside the activated environment.
-
-### API keys
-
-| Variable | Service | Purpose |
-|----------|---------|---------|
+| Env variable | Service | Purpose |
+|-------------|---------|---------|
 | `ZAI_API_KEY` | [Z.ai](https://www.z.ai/) | GLM-OCR for PDF/image processing |
 | `QWEN_API_KEY` | [DashScope](https://dashscope.aliyun.com/) | Qwen `text-embedding-v4` embeddings |
 | `OPENAI_API_KEY` | [DeepSeek](https://api.deepseek.com) | DeepSeek V4 Pro LLM |
 
-Without keys, the server still starts — upload files, then set keys and click **Re-index**.
+`MAX_HISTORY_TURNS` caps how many prior turns are fed back each turn
+(default 6; 0 disables memory).
+
+Without keys the server still starts — upload files, set keys, then click **Re-index**.
+
+### Install & run
+
+**Linux / macOS**
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python server.py
+```
+
+**Windows (PowerShell)**
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python server.py
+```
+
+Drop documents into `data/local/` (or upload via the web UI), type a research question, and watch the pipeline execute in real time.
 
 ---
 
@@ -138,16 +151,17 @@ space compact?"), retrieval is conversation-aware, and answers can build on
 earlier turns.
 
 - **Per-browser session.** A session id is stored in `localStorage` (isolated
-  per tab, survives reload). History lives in server memory and is cleared on
-  restart.
+  per tab, survives reload). History is persisted to PostgreSQL (see
+  `DATABASE_URL` in [config.py](config.py)). If Postgres is unreachable the
+  server falls back to an in-memory store (cleared on restart).
 - **What sees history:** `clarify` (resolves follow-up references), the
   retrieval decision (`generate_query`), and the final `generate_answer`. The
   `reason`/`verify` proof chain stays grounded in retrieved sources only.
 - **Tunable depth.** The number of prior turns fed back is set by
   `MAX_HISTORY_TURNS` in [config.py](config.py) (default 6; set 0 to disable).
   Edit and restart.
-- **Clear chat.** The "Clear chat" button (or `POST /api/clear`) wipes the
-  session's history.
+- **Clear chat.** The "Clear chat" button (or `POST /api/clear`) deletes the
+  session's history from PostgreSQL (and the in-memory mirror).
 
 ---
 
@@ -156,7 +170,7 @@ earlier turns.
 | Component | Technology |
 |-----------|------------|
 | Orchestration | LangGraph `StateGraph` (7 nodes, 1 conditional edge, `RhaState`) |
-| Conversation memory | Per-session Q&A history (admin-tunable `MAX_HISTORY_TURNS`) |
+| Conversation memory | Per-session Q&A history persisted to PostgreSQL (fallback: in-memory) |
 | LLM | DeepSeek V4 Pro via `ChatDeepSeekFixed` (thinking-mode patches) |
 | Embeddings | Qwen `text-embedding-v4` (batch size ≤ 10) |
 | Vector store | Milvus Lite (local file `milvus.db`, COSINE / AUTOINDEX) |
@@ -188,7 +202,8 @@ OCR results are cached to `<file>.ocr.md` (mtime-checked), so re-indexing is fas
 .
 ├── server.py              FastAPI web server + REST API + SSE streaming
 ├── run.py                 CLI pipeline (output → run.log)
-├── config.py              Admin-tunable settings (e.g. MAX_HISTORY_TURNS)
+├── config.py              Admin-tunable settings (MAX_HISTORY_TURNS, DATABASE_URL)
+├── database.py            PostgreSQL persistence for conversation history
 ├── rha_rag/                Core package
 │   ├── llm.py             ChatDeepSeekFixed + model config
 │   ├── pipeline.py        Loaders, OCR (+ .ocr.md cache), embeddings, Milvus store
@@ -199,7 +214,6 @@ OCR results are cached to `<file>.ocr.md` (mtime-checked), so re-indexing is fas
 │   └── index.html         Web UI (dark theme, streaming)
 ├── data/local/            Drop documents here
 ├── uploads/               Or upload via the web UI
-├── test/                  Test corpus + test_milvus.py
 ├── requirements.txt
 ├── .env.example
 └── ARCHITECTURE.md        Detailed step-by-step construction report
@@ -235,16 +249,6 @@ echo "Define continuity" | python run.py
 ```
 
 Output goes to both stdout and `run.log`. Same pipeline as the web server — handy for debugging changes without booting the server.
-
----
-
-## 🔬 Testing
-
-```bash
-python test/test_milvus.py
-```
-
-The test indexes the 6-document corpus in `test/` (covering every supported file type), retrieves for the question in `test/questions.txt`, asserts the right source is surfaced, then runs the full 7-node graph and asserts a non-empty cited answer.
 
 ---
 

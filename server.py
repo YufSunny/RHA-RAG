@@ -24,6 +24,15 @@ from datetime import datetime
 
 os.chdir(Path(__file__).parent)
 
+# Load .env file if present (no extra dependency needed).
+_env = Path(".env")
+if _env.exists():
+    for _line in _env.read_text(encoding="utf-8").splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+
 # ── Logging: everything to server.log AND console ────────────
 LOG_FORMAT = "%(asctime)s  %(levelname)-5s  %(message)s"
 LOG_DATE   = "%H:%M:%S"
@@ -140,6 +149,7 @@ from rha_rag.pipeline import load_all_documents, create_vectorstore
 from rha_rag.graph import build_graph
 from config import MAX_HISTORY_TURNS
 from langchain_core.messages import HumanMessage, AIMessage
+import database
 
 _retriever = None
 _graph = None
@@ -149,16 +159,22 @@ _doc_count = 0
 _chunk_count = 0
 _init_errors: list[str] = []
 
-# Per-session conversation memory: session_id -> [HumanMessage, AIMessage, ...].
-# Lives in process memory (cleared on restart). See config.MAX_HISTORY_TURNS.
-_conversations: dict[str, list] = {}
+# In-memory fallback when PostgreSQL is unreachable (see database.py).
+_fbk_memory: dict[str, list] = {}
 
 
 def _capped_history(session_id: str | None) -> list:
-    """Return this session's prior messages, capped to MAX_HISTORY_TURNS pairs."""
+    """Return this session's prior messages, capped to MAX_HISTORY_TURNS pairs.
+
+    Loads from PostgreSQL (persistent); falls back to in-memory on failure.
+    """
     if not session_id or MAX_HISTORY_TURNS <= 0:
         return []
-    msgs = _conversations.get(session_id, [])
+    rows = database.load_history(session_id, MAX_HISTORY_TURNS)
+    if rows:
+        return [HumanMessage(content=c) if r == "human" else AIMessage(content=c) for r, c in rows]
+    # Fallback
+    msgs = _fbk_memory.get(session_id, [])
     return msgs[-(MAX_HISTORY_TURNS * 2):]
 
 
@@ -171,6 +187,21 @@ def _history_text(msgs: list) -> str:
         role = "Q" if getattr(m, "type", "") == "human" else "A"
         lines.append(f"{role}: {m.content}")
     return "\n".join(lines)
+
+
+def _persist_turn(session_id: str, question: str, answer: str):
+    """Write one Q&A turn to PostgreSQL (and mirror in the in-memory fallback)."""
+    database.save_turn(session_id, question, answer, MAX_HISTORY_TURNS)
+    fbk = _fbk_memory.setdefault(session_id, [])
+    fbk.append(HumanMessage(content=question))
+    fbk.append(AIMessage(content=answer))
+    _fbk_memory[session_id] = fbk[-(MAX_HISTORY_TURNS * 2):]
+
+
+def _clear_history(session_id: str):
+    """Remove a session from both PostgreSQL and the in-memory fallback."""
+    database.clear_session(session_id)
+    _fbk_memory.pop(session_id, None)
 
 
 def _extract_answer(results: list) -> str:
@@ -378,14 +409,13 @@ async def api_reindex():
 
 @app.post("/api/clear")
 async def api_clear(request: Request):
-    """Clear a session's conversation memory."""
+    """Clear a session's conversation memory (Postgres + in-memory fallback)."""
     body = await request.json()
     session_id = body.get("session_id")
-    if session_id and session_id in _conversations:
-        _conversations.pop(session_id, None)
+    if session_id:
+        _clear_history(session_id)
         log.info(f"Clear: session {session_id} history removed")
         return {"cleared": session_id}
-    log.info(f"Clear: session {session_id} — nothing to clear")
     return {"cleared": None}
 
 
@@ -455,10 +485,7 @@ async def api_chat(request: Request):
             # Persist this turn's Q&A into the session memory (capped).
             answer = _extract_answer(results)
             if session_id and answer:
-                hist = _conversations.setdefault(session_id, [])
-                hist.append(HumanMessage(content=question))
-                hist.append(AIMessage(content=answer))
-                _conversations[session_id] = hist[-(MAX_HISTORY_TURNS * 2):]
+                _persist_turn(session_id, question, answer)
 
             for node_name, content in results:
                 event = json.dumps({

@@ -11,6 +11,10 @@ pydantic>=2.13.0
 pymilvus>=2.6.0
 milvus-lite>=2.4.0
 
+# Database (conversation history)
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+
 # Document Processing
 beautifulsoup4>=4.15.0
 pymupdf>=1.27.0

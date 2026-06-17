@@ -99,7 +99,8 @@ results). This is the whole architecture — the rest is plumbing.
 .
 ├── server.py              FastAPI web server + REST API + SSE streaming
 ├── run.py                 CLI that drives the same pipeline (output → run.log)
-├── config.py              Admin-tunable settings (MAX_HISTORY_TURNS)
+├── config.py              Admin-tunable settings (MAX_HISTORY_TURNS, DATABASE_URL)
+├── database.py            PostgreSQL persistence for conversation history
 ├── rha_rag/               ← the core package
 │   ├── __init__.py        Public exports
 │   ├── llm.py             ModelConfig table + ChatDeepSeekFixed (V4 patches)
@@ -115,7 +116,6 @@ results). This is the whole architecture — the rest is plumbing.
 │   └── index.html         Dark-themed web UI (streaming)
 ├── data/local/            Drop documents here (persisted, git-kept via .gitkeep)
 ├── uploads/               Or upload via the web UI (gitignored)
-├── test/                  Test corpus + test_milvus.py
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
@@ -138,6 +138,7 @@ conda. Standard `pip install -r requirements.txt` is all that's needed.
 |---|---|
 | Orchestration | `langgraph`, `langchain`, `langchain-text-splitters`, `langchain-deepseek`, `langchain-openai`, `langchain-core`, `pydantic` |
 | Vector store | `pymilvus`, `milvus-lite` |
+| Database | `sqlalchemy`, `psycopg2-binary` (PostgreSQL for conversation history) |
 | Document processing | `beautifulsoup4`, `pymupdf`, `python-multipart` |
 | APIs | `openai`, `zai-sdk` |
 | Web server | `fastapi`, `uvicorn`, `jinja2` |
@@ -456,12 +457,15 @@ Every step wraps its work in try/except, appends to `_init_errors`, and returns
   `{"node":"error",...}` event.
 - `POST /api/clear` drops a session's history from `_conversations`.
 
-**6f. Conversation memory.** `_conversations: dict[session_id, list[message]]`
-holds per-session Q&A in process memory (cleared on restart). The session id
-comes from the browser's `localStorage` (per-tab, survives reload). History
-reaches `clarify` and `generate_answer` via the `{history}` prompt placeholder,
-and the retrieval decision (`generate_query`) via the prepended `messages`. The
-depth is admin-tunable via `config.MAX_HISTORY_TURNS`.
+**6f. Conversation memory.** History is persisted to a PostgreSQL table
+`conversation_messages` (see [database.py](database.py)) — rows keyed by
+`(session_id, seq)`, with `created_at` timestamps. If Postgres is unreachable
+the server falls back to an in-memory dict (`_fbk_memory`, cleared on restart).
+The session id comes from the browser's `localStorage` (per-tab, survives
+reload). History reaches `clarify` and `generate_answer` via the `{history}`
+prompt placeholder, and the retrieval decision (`generate_query`) via the
+prepended `messages`.  Depth is admin-tunable via `config.MAX_HISTORY_TURNS`;
+the Postgres connection string is `config.DATABASE_URL`.
 
 **6g. File management.** `/api/files` lists **both** `uploads/` and `data/local/`.
 `DELETE /api/files/{name}` searches **both** directories (a fix — originally it
@@ -658,21 +662,6 @@ python run.py "What is a topological space?"
 
 Drop documents into `data/local/` or upload via the UI. Without keys the server
 still boots — upload files, set keys, click **Re-index**.
-
-### Test suite
-
-[test/test_milvus.py](test/test_milvus.py) indexes the 6-doc corpus in
-[test/](test/) (covering all supported file types), retrieves for the question
-in [test/questions.txt](test/questions.txt), asserts `topology.md` is
-retrieved, then runs the full graph and asserts `generate_answer` emits
-non-empty content.
-
-```bash
-python test/test_milvus.py
-```
-
-The test corpus spans every loader: `calculus.html`, `group_theory.pdf`,
-`linear_algebra.docx`, `set_theory.txt`, `topology.md`, plus `questions.txt`.
 
 ### Logs
 
