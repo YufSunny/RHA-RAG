@@ -8,7 +8,7 @@
 
 大多数 RAG 系统把检索到的文本塞进提示词，让模型自由发挥作答。RHA-RAG 不这样做。它强制模型构建一条显式的**证明链**——每一步要么引用自来源、要么标记为常识、要么由前序步骤演绎而来——然后由独立的**验证节点**在写出最终答案前审查这条链。答案中的每个论断都必须标注来源中的某个标签**以及来源文件名**——用来源本身使用的标签即可（Definition 或 Theorem 编号、章节号、标题等）。
 
-基于 [LangGraph](https://langchain-ai.github.io/langgraph/)、[Milvus Lite](https://milvus.io/docs)、[PostgreSQL](https://www.postgresql.org/) 与 [DeepSeek V4](https://api.deepseek.com) 构建。
+基于 [LangGraph](https://langchain-ai.github.io/langgraph/)、[Milvus Lite](https://milvus.io/docs)与[PostgreSQL](https://www.postgresql.org/) 构建。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
