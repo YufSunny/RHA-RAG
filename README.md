@@ -77,7 +77,6 @@ Without keys the server still starts — upload files, set keys, then click **Re
 **Linux / macOS**
 
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python server.py
 ```
@@ -85,8 +84,6 @@ python server.py
 **Windows (PowerShell)**
 
 ```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python server.py
 ```
