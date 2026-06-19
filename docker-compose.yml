@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # ── API keys (REQUIRED — set in .env or shell) ──────────
+      ZAI_API_KEY: ${ZAI_API_KEY}
+      QWEN_API_KEY: ${QWEN_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # ── PostgreSQL (provided by the `db` service) ────────────
+      PG_HOST: db
+      PG_PORT: 5432
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      PG_DATABASE: postgres
+
+      # ── Optional ─────────────────────────────────────────────
+      MAX_HISTORY_TURNS: 6
+    volumes:
+      - uploads_data:/app/uploads
+      - local_data:/app/data/local
+      - milvus_data:/app/milvus.db
+
+volumes:
+  pgdata:
+  uploads_data:
+  local_data:
+  milvus_data:

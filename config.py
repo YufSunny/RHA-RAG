@@ -2,60 +2,61 @@
 
 API keys — set them in your shell, in a ``.env`` file (auto-loaded), or type
 them when prompted.  For quick local dev, uncomment the lines below and paste
-your keys directly (see the examples at the bottom of this docstring).
+your keys directly.  In Docker, set them as environment variables instead;
+interactive prompts are skipped when there is no terminal.
 """
 
 import getpass
 import os
+import sys
 
 
-def _prompt(key: str, *, env: dict[str, str] | None = None):
-    """If *key* is already in ``os.environ``, do nothing.
+def _resolve(key: str) -> str | None:
+    """Return a value for *key* from the first available source, or None.
 
-    Otherwise look for a module-level variable with the same name (set by
-    uncommenting the corresponding line in this file).  If found, copy it
-    into ``os.environ``.  Otherwise prompt the user via ``getpass``
-    (for API keys) or plain ``input`` (for PostgreSQL fields).  An empty
-    input is treated as "skip".
-
-    *env* lets the caller pass a non-``os.environ`` dict for testing.
+    1. ``os.environ`` (shell / ``.env`` / Docker).
+    2. A module-level variable with the same name (uncommented in this file).
     """
-    store = os.environ if env is None else env
-
-    if key in store:
-        return
-
-    # Check for a value set by uncommenting the corresponding line in this file.
+    if key in os.environ:
+        return os.environ[key]
     mod_val = globals().get(key)
     if mod_val is not None and mod_val not in ("your-key-here", ""):
-        store[key] = str(mod_val)
-        return
+        return str(mod_val)
+    return None
 
-    prompt = getpass.getpass if key.startswith(("ZAI_", "QWEN_", "OPENAI_")) else input
+
+def _prompt(key: str, *, secret: bool = False):
+    """Ask the user for *key* interactively.  Skipped silently when stdin is
+    not a terminal (Docker / redirect)."""
+    if not sys.stdin.isatty():
+        return
+    prompt = getpass.getpass if secret else input
     try:
         val = prompt(f"{key}: ").strip()
     except (EOFError, OSError):
         return
     if val:
-        store[key] = val
+        os.environ[key] = val
 
 
 # ── API keys ───────────────────────────────────────────────────
-# Uncomment and fill in, or leave commented to be prompted.
+# Uncomment and fill in, or leave commented to be prompted / set via env.
 
 # ZAI_API_KEY    = "your-key-here"        # https://www.z.ai/
 # QWEN_API_KEY   = "your-key-here"        # https://dashscope.aliyun.com/
 # OPENAI_API_KEY = "your-key-here"        # https://api.deepseek.com
 
 for _k in ("ZAI_API_KEY", "QWEN_API_KEY", "OPENAI_API_KEY"):
-    _prompt(_k)
+    _resolve(_k)  # picks up env / uncommented value
+    _prompt(_k, secret=True)
 
 
 # ── Conversation memory ───────────────────────────────────────
-MAX_HISTORY_TURNS = 6   # prior Q&A turns fed back each turn (0 = disable)
+MAX_HISTORY_TURNS = int(os.environ.get("MAX_HISTORY_TURNS", "6"))
 
 # PostgreSQL connection for persistent history.
-# Uncomment and fill in, or leave unset (falls back to in-memory).
+# Uncomment and fill in, or set the PG_* env vars (Docker).
+# Leave all blank for in-memory storage.
 
 # PG_HOST     = "localhost"
 # PG_PORT     = 5432
@@ -63,16 +64,18 @@ MAX_HISTORY_TURNS = 6   # prior Q&A turns fed back each turn (0 = disable)
 # PG_PASSWORD = "your-password"
 # PG_DATABASE = "postgres"
 
-_pg_parts = {}
-for _k in ("PG_HOST", "PG_PORT", "PG_USER", "PG_PASSWORD", "PG_DATABASE"):
-    _prompt(_k, env=_pg_parts)
+_PG_FIELDS = ("PG_HOST", "PG_PORT", "PG_USER", "PG_PASSWORD", "PG_DATABASE")
+for _k in _PG_FIELDS:
+    _resolve(_k)
+    _prompt(_k)
 
-if all(_pg_parts.values()):
+_pg = {k: os.environ.get(k, "") for k in _PG_FIELDS}
+if all(_pg.values()):
     DATABASE_URL = (
         f"postgresql+psycopg2://"
-        f"{_pg_parts['PG_USER']}:{_pg_parts['PG_PASSWORD']}@"
-        f"{_pg_parts['PG_HOST']}:{_pg_parts['PG_PORT']}/"
-        f"{_pg_parts['PG_DATABASE']}"
+        f"{_pg['PG_USER']}:{_pg['PG_PASSWORD']}@"
+        f"{_pg['PG_HOST']}:{_pg['PG_PORT']}/"
+        f"{_pg['PG_DATABASE']}"
     )
 else:
     DATABASE_URL = ""
