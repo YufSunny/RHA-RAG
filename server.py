@@ -474,14 +474,12 @@ async def api_chat(request: Request):
         }, status_code=503)
 
     async def generate():
-        loop = asyncio.get_event_loop()
-
         # Send indexing status
         yield f"data: {json.dumps({'node': 'status', 'content': f'{_doc_count} documents, {_chunk_count} chunks', 'done': False})}\n\n"
 
-        def run_graph():
-            results = []
-            for chunk in _graph.stream(
+        results: list = []
+        try:
+            async for chunk in _graph.astream(
                 {
                     "question": question,
                     "history": history_text,
@@ -494,23 +492,17 @@ async def api_chat(request: Request):
                     content = getattr(msg, "content", str(msg))
                     log.info(f"  Node [{node_name}]: {len(content)} chars")
                     results.append((node_name, content))
-            return results
-
-        try:
-            results = await loop.run_in_executor(None, run_graph)
+                    event = json.dumps({
+                        "node": node_name,
+                        "content": content,
+                        "done": False,
+                    }, ensure_ascii=False)
+                    yield f"data: {event}\n\n"
 
             # Persist this turn's Q&A into the session memory (capped).
             answer = _extract_answer(results)
             if session_id and answer:
                 _persist_turn(session_id, question, answer)
-
-            for node_name, content in results:
-                event = json.dumps({
-                    "node": node_name,
-                    "content": content,
-                    "done": False,
-                }, ensure_ascii=False)
-                yield f"data: {event}\n\n"
 
             elapsed = (datetime.now() - t0).total_seconds()
             nodes_seen = [n for n, _ in results]

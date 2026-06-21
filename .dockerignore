@@ -26,9 +26,6 @@ uploads/*
 ARCHITECTURE.md
 README_zh.md
 
-# Tests
-test/
-
 # Docker files
 .dockerignore
 docker-compose.yml

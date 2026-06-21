@@ -279,7 +279,7 @@ async function refreshSessions() {
 }
 
 async function switchSession(id) {
-  if (id === sessionId) return;
+  if (isStreaming || id === sessionId) return;
   sessionId = id; localStorage.setItem('rha_session_id', id);
   document.getElementById('chat').innerHTML = '';
   const res = await fetch('/api/sessions/' + encodeURIComponent(id));
@@ -292,13 +292,14 @@ async function switchSession(id) {
 }
 
 function newChat() {
+  if (isStreaming) return;
   sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId);
   document.getElementById('chat').innerHTML =
     '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>New conversation</div></div>';
   refreshSessions();
 }
 
-function addMessage(role, content, timestamp) {
+function addMessage(role, content, timestamp, raw) {
   const chat = document.getElementById('chat');
   const empty = document.getElementById('empty-state'); if (empty) empty.remove();
   const timeStr = timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
@@ -308,7 +309,7 @@ function addMessage(role, content, timestamp) {
 
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
-  bubble.innerHTML = renderContent(content);
+  bubble.innerHTML = raw ? content : renderContent(content);
 
   if (role === 'assistant') {
     const copy = document.createElement('button');
@@ -339,7 +340,7 @@ async function ask() {
   document.getElementById('ask-btn').disabled = true;
   document.getElementById('stop-btn').style.display = '';
   const { row: qRow, bubble: qBubble } = addMessage('human', q);
-  const { row: aRow, bubble: aBubble } = addMessage('assistant', '<span class="spinner"></span>Thinking...');
+  const { row: aRow, bubble: aBubble } = addMessage('assistant', '<span class="spinner"></span>Thinking...', null, true);
 
   currentAbort = new AbortController();
 
@@ -354,6 +355,8 @@ async function ask() {
     const pipelineNodes = [];
     let answerContent = '';
     let streamDone = false;
+    let detailEl = null;
+    let detailSummary = null;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -361,7 +364,7 @@ async function ask() {
     while (!streamDone) {
       const { value, done } = await reader.read();
       buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-      if (done) buffer += decoder.decode();  // flush decoder
+      if (done) buffer += decoder.decode();
       const lines = buffer.split('\n'); buffer = lines.pop() || '';
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
@@ -371,29 +374,40 @@ async function ask() {
         if (event.node === 'generate_answer') answerContent = event.content;
         else if (event.node === 'generate_query' && event.content) answerContent = event.content;
         if (event.node === 'status') continue;
+
         pipelineNodes.push({ node: event.node, content: event.content });
+
+        // Show intermediate nodes in real time inside a growing <details>.
+        if (!detailEl) {
+          detailEl = document.createElement('details');
+          detailEl.className = 'pipeline-detail';
+          detailEl.open = true;
+          detailSummary = document.createElement('summary');
+          detailEl.appendChild(detailSummary);
+          aBubble.innerHTML = '';
+          aBubble.appendChild(detailEl);
+        }
+        detailSummary.textContent = 'Pipeline — ' + esc(event.node);
+        const div = document.createElement('div');
+        div.className = 'pipeline-node';
+        div.innerHTML = '<div class="pn-label">' + esc(event.node) + '</div>' + renderContent(event.content);
+        detailEl.appendChild(div);
+        document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
       }
       if (done) break;
     }
 
-    // Render final answer
+    // Collapse the pipeline detail and show the final answer.
+    if (detailEl) {
+      detailEl.open = false;
+      detailSummary.textContent = 'Pipeline (' + pipelineNodes.length + ' steps)';
+    }
     aBubble.innerHTML = renderContent(answerContent || '(no answer)');
     const copy = document.createElement('button');
     copy.className = 'copy-btn'; copy.textContent = '📋'; copy.title = 'Copy';
     copy.onclick = function() { navigator.clipboard.writeText(answerContent); };
     aBubble.appendChild(copy);
-
-    // Add collapsible pipeline detail
-    if (pipelineNodes.length) {
-      const detail = document.createElement('details');
-      detail.className = 'pipeline-detail';
-      let html = '<summary>Pipeline (' + pipelineNodes.length + ' steps)</summary>';
-      for (const pn of pipelineNodes) {
-        html += '<div class="pipeline-node"><div class="pn-label">' + esc(pn.node) + '</div>' + esc(pn.content.substring(0, 500)) + '</div>';
-      }
-      detail.innerHTML = html;
-      aBubble.appendChild(detail);
-    }
+    if (detailEl) aBubble.appendChild(detailEl);
 
   } catch (e) {
     if (e.name === 'AbortError') {

@@ -1,0 +1,27 @@
+[
+  {
+    "question": "What is a topological space?",
+    "reference_answer": "A topological space is a pair (X, tau) where X is a set and tau is a collection of subsets of X (called open sets) satisfying: (1) the empty set and X belong to tau, (2) the union of any collection of sets in tau is in tau, (3) the intersection of any finite collection of sets in tau is in tau.",
+    "relevant_sources": ["topology.md"]
+  },
+  {
+    "question": "Define a group in abstract algebra.",
+    "reference_answer": "A group is a set G with a binary operation * satisfying: (i) closure, (ii) associativity, (iii) existence of an identity element e, (iv) existence of inverses for every element.",
+    "relevant_sources": ["group_theory.pdf"]
+  },
+  {
+    "question": "What is a vector space?",
+    "reference_answer": "A vector space V over a field F is a set with vector addition and scalar multiplication satisfying the usual axioms (associativity, commutativity, identity, inverses for addition; compatibility of scalar multiplication with field operations).",
+    "relevant_sources": ["linear_algebra.docx"]
+  },
+  {
+    "question": "State the Mean Value Theorem.",
+    "reference_answer": "If f is continuous on [a,b] and differentiable on (a,b), then there exists c in (a,b) such that f'(c) = [f(b)-f(a)]/(b-a).",
+    "relevant_sources": ["calculus.html"]
+  },
+  {
+    "question": "Define an injective function.",
+    "reference_answer": "A function f: A -> B is injective (one-to-one) if f(x) = f(y) implies x = y for all x,y in A.",
+    "relevant_sources": ["set_theory.txt"]
+  }
+]
