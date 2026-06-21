@@ -71,6 +71,7 @@ import uvicorn
 # Ensure directories exist
 UPLOAD_DIR = Path("uploads")
 DATA_DIR = Path("data/local")
+AUTO_SEED_DIR = Path("data/auto-seed")
 UPLOAD_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -147,7 +148,7 @@ async def log_requests(request: Request, call_next):
 from rha_rag.llm import models, create_llms
 from rha_rag.pipeline import load_all_documents, create_vectorstore
 from rha_rag.graph import build_graph
-from config import MAX_HISTORY_TURNS, PORT
+from config import DEFAULT_FAST_MODE, MAX_HISTORY_TURNS, PORT
 from langchain_core.messages import HumanMessage, AIMessage
 import database
 
@@ -253,6 +254,8 @@ def _init_pipeline():
     dirs = [str(UPLOAD_DIR)]
     if DATA_DIR.exists() and any(DATA_DIR.iterdir()):
         dirs.append(str(DATA_DIR))
+    if AUTO_SEED_DIR.exists() and any(AUTO_SEED_DIR.iterdir()):
+        dirs.append(str(AUTO_SEED_DIR))
     log.info(f"Scan: {len(dirs)} dir(s) — {dirs}")
 
     # Step 4: Load documents
@@ -311,7 +314,11 @@ def _count_files() -> int:
     """Return the number of supported files on disk (always up-to-date)."""
     from rha_rag.pipeline import discover_files
 
-    return len(discover_files(str(UPLOAD_DIR))) + len(discover_files(str(DATA_DIR)))
+    return (
+        len(discover_files(str(UPLOAD_DIR)))
+        + len(discover_files(str(DATA_DIR)))
+        + len(discover_files(str(AUTO_SEED_DIR)))
+    )
 
 
 @app.get("/api/status")
@@ -483,7 +490,7 @@ async def api_chat(request: Request):
                 {
                     "question": question,
                     "history": history_text,
-                    "fast_mode": body.get("fast", False),
+                    "fast_mode": body.get("fast", DEFAULT_FAST_MODE),
                     "messages": history_msgs + [HumanMessage(content=question)],
                 }
             ):

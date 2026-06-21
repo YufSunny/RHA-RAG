@@ -71,6 +71,13 @@ LLM_THINKING = os.environ.get("LLM_THINKING", "true").lower() in (
 # Effort level when thinking mode is on: low | medium | high | xhigh | max.
 LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "high")
 
+# Default UI / CLI / server runtime mode. Fast mode skips clarify /
+# grade / reason / verify and runs retrieve → generate_answer →
+# visualize. Full 7-node reasoning remains opt-in via the UI toggle.
+DEFAULT_FAST_MODE = os.environ.get("DEFAULT_FAST_MODE", "true").lower() in (
+    "1", "true", "yes"
+)
+
 # ── Server ───────────────────────────────────────────────────
 PORT = int(os.environ.get("PORT", "8000"))
 

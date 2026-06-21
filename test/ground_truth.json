@@ -23,5 +23,59 @@
     "question": "Define an injective function.",
     "reference_answer": "A function f: A -> B is injective (one-to-one) if f(x) = f(y) implies x = y for all x,y in A.",
     "relevant_sources": ["set_theory.txt"]
+  },
+  {
+    "question": "What is the most common OBD-II diagnostic code for catalytic converter faults?",
+    "reference_answer": "P0420 (Catalyst System Efficiency Below Threshold, Bank 1) — frequency 1842 in the 2023 dataset.",
+    "relevant_sources": ["dtc-codes.csv"],
+    "expects_chart": true,
+    "chart_type": "bar"
+  },
+  {
+    "question": "Which OBD-II code is the second most common for catalyst faults?",
+    "reference_answer": "P0430 (Catalyst System Efficiency Below Threshold, Bank 2) — frequency 612.",
+    "relevant_sources": ["dtc-codes.csv"],
+    "expects_chart": true
+  },
+  {
+    "question": "What is NEV penetration share in China for December 2024?",
+    "reference_answer": "47.8% (CAAM monthly data, 2024-12: total 3,337,000 units, NEV 1,595,000).",
+    "relevant_sources": ["caam-monthly-sales.csv"],
+    "expects_chart": true
+  },
+  {
+    "question": "How has NEV penetration in China trended from 2020 to 2024?",
+    "reference_answer": "From ~5% in early 2020 to ~48% by December 2024 — a sustained upward trend.",
+    "relevant_sources": ["caam-monthly-sales.csv"],
+    "expects_chart": true,
+    "chart_type": "line"
+  },
+  {
+    "question": "Which passenger-car segment gained share the most in China between 2020 and 2024?",
+    "reference_answer": "SUV — from 46.2% (2020) to 56.4% (2024), a gain of ~10 percentage points.",
+    "relevant_sources": ["cpca-segment-share.csv"],
+    "expects_chart": true
+  },
+  {
+    "question": "What is the recommended diagnostic sequence for P0420 on Toyota 2.5L A25A-FKS engines?",
+    "reference_answer": "Pull freeze-frame and fuel-trim data; visually inspect exhaust manifold and pre-cat pipe for soot; compare upstream vs downstream O₂ sensor voltage traces at idle and 2500 rpm; if traces are normal, replace downstream O₂ sensor before condemning the catalyst.",
+    "relevant_sources": ["toyota-p0420.md"]
+  },
+  {
+    "question": "Which model year had the highest reported P0420 cases for the Toyota 2.5L in the TSB data?",
+    "reference_answer": "2017 — 41 cases per 10k vehicles (Table 3 in toyota-p0420.md).",
+    "relevant_sources": ["toyota-p0420.md"],
+    "expects_chart": true,
+    "chart_type": "bar"
+  },
+  {
+    "question": "What is the BMW-specific code 2A78, and what is its generic OBD-II equivalent on some models?",
+    "reference_answer": "2A78 — VANOS intake, mechanical fault. Generic equivalent on some models is P0011.",
+    "relevant_sources": ["bmw-fault-codes.md"]
+  },
+  {
+    "question": "What is the normal-use oil-change interval for a current Ford light-duty vehicle?",
+    "reference_answer": "10,000 miles (5,000 under severe use), per the Ford scheduled maintenance table.",
+    "relevant_sources": ["ford-service-intervals.md"]
   }
 ]

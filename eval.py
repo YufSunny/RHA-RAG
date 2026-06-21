@@ -114,6 +114,33 @@ def context_recall(retrieved_sources: list[str], relevant_sources: list[str]) ->
     return hits / len(relevant_sources)
 
 
+def _score_chart_emission(row: dict) -> float:
+    """Score whether the visualize node produced a usable ChartSpec.
+
+    Returns:
+        1.0  — chart emitted and matches expected type (when specified)
+        0.5  — chart emitted but type mismatch (or missing confidence/citation)
+        0.0  — no chart emitted (acceptable when expects_chart=False)
+    """
+    if not row.get("expects_chart"):
+        return 1.0 if not row.get("chart_spec") else 0.5  # bonus: chart when not asked
+    spec = row.get("chart_spec")
+    if not spec or spec.get("_raw"):
+        return 0.0
+    # Type match check.
+    expected_type = row.get("chart_type")
+    if expected_type and spec.get("type") != expected_type:
+        return 0.5
+    # Schema sanity (no Pydantic import — keep eval.py light).
+    if spec.get("confidence") not in ("extracted", "estimated"):
+        return 0.5
+    if not spec.get("data"):
+        return 0.5
+    if spec["confidence"] == "extracted" and not spec.get("citation"):
+        return 0.5
+    return 1.0
+
+
 # ── Load ground truth ─────────────────────────────────────────
 gt_file = Path("test/ground_truth.json")
 dataset = json.loads(gt_file.read_text(encoding="utf-8"))
@@ -147,6 +174,7 @@ for i, entry in enumerate(dataset, 1):
     q_grounded = q + " by the uploaded files"
 
     answer = ""
+    chart_spec = None
     for chunk in graph.stream(
         {"question": q_grounded, "history": "", "messages": [HumanMessage(content=q_grounded)]}
     ):
@@ -155,6 +183,11 @@ for i, entry in enumerate(dataset, 1):
             content = getattr(msg, "content", str(msg))
             if node_name in ("generate_answer", "generate_query"):
                 answer = content
+            if node_name == "visualize" and content:
+                try:
+                    chart_spec = json.loads(content)
+                except json.JSONDecodeError:
+                    chart_spec = {"_raw": content[:200]}
 
     ret_docs = retriever.invoke(q)
     contexts = [d.page_content for d in ret_docs]
@@ -164,13 +197,17 @@ for i, entry in enumerate(dataset, 1):
         "question": q, "answer": answer, "contexts": contexts,
         "retrieved_sources": retrieved_sources,
         "reference": ref, "relevant_sources": rel_srcs,
+        "chart_spec": chart_spec,
+        "expects_chart": entry.get("expects_chart", False),
+        "chart_type": entry.get("chart_type"),
     })
     print(f"  answer: {len(answer)} chars, retrieved: {len(contexts)} chunks "
-          f"from {retrieved_sources}")
+          f"from {retrieved_sources}, chart: {'yes' if chart_spec else 'no'}")
 
 # ── Score ─────────────────────────────────────────────────────
 print(f"\nEvaluating ({LLM_MODEL}) ...")
-score_cols = ["faithfulness", "answer_relevancy", "answer_correctness", "context_recall"]
+score_cols = ["faithfulness", "answer_relevancy", "answer_correctness",
+                "context_recall", "chart_emission"]
 
 for r in rows:
     q, a, ctxs, ref, rels, retsrcs = (r["question"], r["answer"], r["contexts"],
@@ -180,11 +217,13 @@ for r in rows:
     r["answer_relevancy"]   = round(answer_relevancy(q, a), 3)
     r["answer_correctness"] = round(answer_correctness(q, a, ref), 3)
     r["context_recall"]     = round(context_recall(retsrcs, rels), 3)
+    r["chart_emission"]     = _score_chart_emission(r)
+    chart_mark = f"  chart={r['chart_emission']}" if r["expects_chart"] else ""
     print(f"  {q[:55]:55s}  "
           f"faith={r['faithfulness']:.2f}  "
           f"rel={r['answer_relevancy']:.2f}  "
           f"correct={r['answer_correctness']:.2f}  "
-          f"cr={r['context_recall']:.2f}")
+          f"cr={r['context_recall']:.2f}{chart_mark}")
 
 # ── Averages ──────────────────────────────────────────────────
 avgs = {c: round(sum(r[c] for r in rows) / len(rows), 3) for c in score_cols}
@@ -192,7 +231,8 @@ print(f"\n{'AVERAGE':>55s}  "
       f"faith={avgs['faithfulness']:.2f}  "
       f"rel={avgs['answer_relevancy']:.2f}  "
       f"correct={avgs['answer_correctness']:.2f}  "
-      f"cr={avgs['context_recall']:.2f}")
+      f"cr={avgs['context_recall']:.2f}  "
+      f"chart={avgs['chart_emission']:.2f}")
 
 # ── Report ────────────────────────────────────────────────────
 report = {

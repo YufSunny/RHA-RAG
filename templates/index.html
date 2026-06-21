@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
   :root {
     --bg: #0d1117; --surface: #161b22; --border: #30363d;
@@ -93,6 +94,38 @@
     color: var(--muted); cursor: pointer; font-size: 12px; opacity: 0;
   }
   .msg-row.assistant .msg-bubble:hover .copy-btn { opacity: 1; }
+
+  /* Chart card — full-width row, not inside the message bubble */
+  .chart-card {
+    margin: 8px 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: visible;
+    width: 100%;
+  }
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  .chart-title { color: var(--text); font-size: 13px; font-weight: 600; }
+  .chart-btn {
+    background: var(--accent); color: #0d1117; border: none; padding: 4px 10px;
+    border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  .chart-btn:hover { opacity: 0.85; }
+  .chart-body { padding: 8px 8px 16px; min-height: 360px; overflow: visible; }
+  .chart-caption {
+    padding: 6px 12px; border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--muted);
+  }
+  .chart-cite { font-style: italic; }
+  .chart-note { margin-top: 4px; color: var(--orange); }
+  .chart-table { width: 100%; border-collapse: collapse; color: var(--text); font-size: 13px; }
+  .chart-table th, .chart-table td {
+    border: 1px solid var(--border); padding: 4px 8px; text-align: left;
+  }
+  .chart-table th { background: var(--surface); }
 
   /* Collapsible pipeline detail */
   .pipeline-detail { margin-top: 8px; }
@@ -187,7 +220,7 @@
   <div class="chat-input">
     <input type="text" id="question-input" placeholder="Ask a research question..." autofocus
            onkeydown="if(event.key==='Enter')ask()">
-    <button id="fast-btn" onclick="toggleFast()">Full</button>
+    <button id="fast-btn" onclick="toggleFast()" class="fast">Fast</button>
     <button id="stop-btn" onclick="stopGen()">Stop</button>
     <button id="ask-btn" onclick="ask()">Ask</button>
   </div>
@@ -195,7 +228,7 @@
 
 <script>
 let isStreaming = false;
-let fastMode = false;
+let fastMode = true;
 let currentAbort = null;
 let sessionId = localStorage.getItem('rha_session_id');
 if (!sessionId) { sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId); }
@@ -307,6 +340,186 @@ function renderContent(text) {
   return html;
 }
 
+// ── Visualization (ECharts) ────────────────────────────────────
+function buildEChartsOption(spec) {
+  const data = (spec.data || []).map(d => ({
+    name: d.label || d.x,
+    value: [d.x, d.y],
+  }));
+  // Lots of points (e.g. monthly time series)? Enable dataZoom so the
+  // user can pan/scrub instead of getting a squashed unreadable chart.
+  const enableZoom = data.length > 12;
+  // Layout budget from the bottom up: dataZoom slider (if any) 24px,
+  // axis-name line 18px, then rotated label strip 28px. Unrotated
+  // labels need only ~16px. We over-allocate so ECharts can't clip.
+  const zoomH = enableZoom ? 30 : 0;
+  const rotate = data.length > 6;
+  const labelStripH = rotate ? 70 : 24;
+  const xNameH = spec.x_label ? 22 : 0;
+  const gridBottom = zoomH + labelStripH + xNameH + 10;
+  const base = {
+    title: { text: spec.title || '', left: 'center', textStyle: { color: '#c9d1d9', fontSize: 14 } },
+    tooltip: { trigger: 'axis' },
+    grid: { left: 70, right: 30, top: 60, bottom: gridBottom, containLabel: true },
+    xAxis: {
+      type: 'category',
+      name: spec.x_label || '',
+      nameLocation: 'end',
+      nameGap: 8,
+      nameTextStyle: { color: '#8b949e', fontSize: 12 },
+      // Keep every label visible (no auto-skip that drops the last one).
+      axisLabel: {
+        color: '#c9d1d9',
+        interval: 0,
+        rotate: rotate ? 35 : 0,
+        // Reserve room so rotated labels don't get clipped at the edge.
+        margin: 10,
+        fontSize: 11,
+      },
+      axisLine: { lineStyle: { color: '#30363d' } },
+      axisTick: { alignWithLabel: true },
+    },
+    yAxis: {
+      type: 'value',
+      name: spec.y_label || '',
+      nameLocation: 'end',
+      nameGap: 14,
+      nameTextStyle: { color: '#8b949e', fontSize: 12 },
+      axisLabel: { color: '#c9d1d9' },
+      axisLine: { lineStyle: { color: '#30363d' } },
+      splitLine: { lineStyle: { color: '#21262d' } },
+    },
+  };
+  if (spec.type === 'pie') {
+    return {
+      title: base.title,
+      tooltip: { trigger: 'item' },
+      legend: { textStyle: { color: '#c9d1d9' }, bottom: 0 },
+      series: [{
+        type: 'pie', radius: ['40%', '70%'], center: ['50%', '50%'],
+        data: (spec.data || []).map(d => ({ name: d.label || d.x, value: d.y })),
+        label: { color: '#c9d1d9' },
+      }],
+    };
+  }
+  if (spec.type === 'line') {
+    const opt = { ...base, series: [{ type: 'line', data: data.map(d => d.value[1]),
+      smooth: true, lineStyle: { color: '#58a6ff' }, itemStyle: { color: '#58a6ff' },
+      symbolSize: 6 }] };
+    if (enableZoom) opt.dataZoom = dataZoom(zoomH);
+    return opt;
+  }
+  if (spec.type === 'scatter') {
+    const opt = { ...base,
+      xAxis: { ...base.xAxis, type: 'value' },
+      series: [{ type: 'scatter', data: data.map(d => d.value),
+        itemStyle: { color: '#58a6ff' } }] };
+    if (enableZoom) opt.dataZoom = dataZoom(zoomH);
+    return opt;
+  }
+  if (spec.type === 'table') {
+    // Render as a simple HTML table (chart container becomes a <div>).
+    return null;
+  }
+  // Default: bar.
+  const opt = { ...base, series: [{ type: 'bar', data: data.map(d => d.value[1]),
+    itemStyle: { color: '#58a6ff' } }] };
+  if (enableZoom) opt.dataZoom = dataZoom(zoomH);
+  return opt;
+}
+
+function dataZoom(bottomOffset) {
+  // bottomOffset must match the slider height so the slider sits flush
+  // with the bottom of the grid.
+  const sliderH = 20;
+  return [
+    { type: 'inside', xAxisIndex: 0 },
+    { type: 'slider', xAxisIndex: 0, height: sliderH, bottom: 6,
+      textStyle: { color: '#8b949e' },
+      borderColor: '#30363d', fillerColor: 'rgba(88,166,255,0.15)',
+      handleStyle: { color: '#58a6ff' } },
+  ];
+}
+
+function buildChartCard(spec) {
+  const card = document.createElement('div');
+  card.className = 'chart-card';
+  const safeTitle = esc(spec.title || 'Chart');
+  card.innerHTML = `
+    <div class="chart-header">
+      <div class="chart-title">${safeTitle}</div>
+      <div class="chart-actions">
+        <button class="chart-btn" data-act="download">⬇ PNG</button>
+      </div>
+    </div>
+    <div class="chart-body"></div>
+    <div class="chart-caption"></div>
+  `;
+  const body = card.querySelector('.chart-body');
+  const caption = card.querySelector('.chart-caption');
+
+  if (spec.type === 'table') {
+    // Render the spec.data as a table; no ECharts involved.
+    const table = document.createElement('table');
+    table.className = 'chart-table';
+    const head = document.createElement('thead');
+    head.innerHTML = `<tr><th>${esc(spec.x_label || 'x')}</th><th>${esc(spec.y_label || 'y')}</th></tr>`;
+    table.appendChild(head);
+    const tb = document.createElement('tbody');
+    for (const d of (spec.data || [])) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(d.x)}</td><td>${esc(String(d.y))}</td>`;
+      tb.appendChild(tr);
+    }
+    table.appendChild(tb);
+    body.appendChild(table);
+  } else {
+    const option = buildEChartsOption(spec);
+    const chartEl = document.createElement('div');
+    chartEl.style.width = '100%';
+    chartEl.style.overflow = 'visible';
+    // Container height: enough for title(40) + grid(60) + axis-labels +
+    // axis-name + dataZoom + padding. More points → taller for the
+    // rotated label strip. Cap so it doesn't dominate the screen.
+    const rows = (spec.data || []).length;
+    const rotate = rows > 6;
+    const labelStripH = rotate ? 70 : 24;
+    const zoomH = rows > 12 ? 30 : 0;
+    const xNameH = spec.x_label ? 22 : 0;
+    const baseH = 60 + 40 + labelStripH + xNameH + zoomH + 30;
+    chartEl.style.height = Math.min(640, Math.max(360, baseH)) + 'px';
+    body.appendChild(chartEl);
+    // Wait for layout to settle so ECharts reads the correct container
+    // dimensions on init (otherwise it can render at 0x0 and clip).
+    const chart = echarts.init(chartEl, null, { renderer: 'canvas' });
+    requestAnimationFrame(() => {
+      chart.setOption(option);
+      chart.resize();
+    });
+    // Resize on window resize.
+    window.addEventListener('resize', () => chart.resize());
+
+    card.querySelector('[data-act="download"]').onclick = () => {
+      const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#0d1117' });
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (spec.title || 'chart').replace(/[^\w\-]+/g, '_') + '.png';
+      a.click();
+    };
+  }
+
+  // Citation + note caption.
+  let cap = '';
+  if (spec.citation) {
+    cap += `<span class="chart-cite">[${esc(spec.citation.filename)} — ${esc(spec.citation.label)}]</span>`;
+  }
+  if (spec.note) {
+    cap += `<div class="chart-note">${esc(spec.note)}</div>`;
+  }
+  caption.innerHTML = cap;
+  return card;
+}
+
 // ── Upload ────────────────────────────────────────────────────
 const zone = document.getElementById('upload-zone');
 const input = document.getElementById('file-input');
@@ -401,7 +614,7 @@ function addMessage(role, content, timestamp, raw) {
   chat.appendChild(timeDiv);
 
   chat.scrollTop = chat.scrollHeight;
-  return { row, bubble };
+  return { row, bubble, time: timeDiv };
 }
 
 // ── Chat ──────────────────────────────────────────────────────
@@ -415,7 +628,7 @@ async function ask() {
   document.getElementById('ask-btn').disabled = true;
   document.getElementById('stop-btn').style.display = '';
   const { row: qRow, bubble: qBubble } = addMessage('human', q);
-  const { row: aRow, bubble: aBubble } = addMessage('assistant', '<span class="spinner"></span>' + t('thinking'), null, true);
+  const { row: aRow, bubble: aBubble, time: aTime } = addMessage('assistant', '<span class="spinner"></span>' + t('thinking'), null, true);
 
   currentAbort = new AbortController();
 
@@ -429,6 +642,7 @@ async function ask() {
 
     const pipelineNodes = [];
     let answerContent = '';
+    let chartSpec = null;     // captured from the visualize SSE event
     let streamDone = false;
     let detailEl = null;
     let detailSummary = null;
@@ -448,6 +662,14 @@ async function ask() {
         if (event.node === 'error') { aBubble.innerHTML = '<span style="color:var(--red)">Error: ' + esc(event.content) + '</span>'; streamDone = true; break; }
         if (event.node === 'generate_answer') answerContent = event.content;
         else if (event.node === 'generate_query' && event.content) answerContent = event.content;
+        // Capture chart spec from the visualize node. Its .content is
+        // a JSON-encoded ChartSpec (validated server-side).
+        if (event.node === 'visualize' && event.content) {
+          try { chartSpec = JSON.parse(event.content); } catch (_) { chartSpec = null; }
+          // Don't render the raw JSON in the pipeline-detail; skip the
+          // generic pipeline-node rendering for this node.
+          continue;
+        }
         if (event.node === 'status') continue;
 
         pipelineNodes.push({ node: event.node, content: event.content });
@@ -482,6 +704,15 @@ async function ask() {
     copy.className = 'copy-btn'; copy.textContent = '📋'; copy.title = 'Copy';
     copy.onclick = function() { navigator.clipboard.writeText(answerContent); };
     aBubble.appendChild(copy);
+
+    // Append chart card as a sibling of the message row (full chat
+    // width). Inserts between the row and the timestamp so the layout
+    // reads: bubble row → chart → time.
+    if (chartSpec) {
+      const chartCard = buildChartCard(chartSpec);
+      aRow.parentNode.insertBefore(chartCard, aTime);
+    }
+
     if (detailEl) aBubble.appendChild(detailEl);
 
   } catch (e) {

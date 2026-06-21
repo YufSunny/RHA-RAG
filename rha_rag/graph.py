@@ -15,11 +15,14 @@ class RhaState(MessagesState):
     `messages[0]`, which no longer holds once history is prepended). `history`
     is a condensed prior-Q&A string injected into the clarify/generate prompts.
     `fast_mode` skips clarify / grade / reason / verify — retrieve then answer.
+    `visual_spec` carries the chart-spec JSON produced by the visualize node,
+    forwarded to the frontend via the SSE channel.
     """
 
     question: str
     history: str
     fast_mode: bool = False
+    visual_spec: str = ""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -166,11 +169,16 @@ def build_graph(retriever, response_model, grader_model):
 
     Full path (fast_mode=False):
         START -> clarify -> generate_query -> [conditional] -> retrieve
-                           -> grade -> reason -> verify -> generate_answer -> END
+                           -> grade -> reason -> verify -> generate_answer
+                           -> visualize -> END
 
     Fast path (fast_mode=True):
         START -> generate_query -> [conditional] -> retrieve
-                                 -> generate_answer -> END
+                                 -> generate_answer -> visualize -> END
+
+    The visualize node runs in both modes. It reads the prior
+    generate_answer output + retrieved context, asks the LLM for a JSON
+    ChartSpec, validates with Pydantic, and emits via SSE.
     """
     from langgraph.graph import END, START, StateGraph
     from langgraph.prebuilt import ToolNode
@@ -187,6 +195,12 @@ def build_graph(retriever, response_model, grader_model):
     workflow.add_node("reason", make_reason(response_model))
     workflow.add_node("verify", make_verify(response_model))
     workflow.add_node("generate_answer", make_generate_answer(response_model))
+
+    # Visualization node — runs in BOTH fast and full modes. Reads the
+    # generate_answer output + retrieved context, asks the LLM for a
+    # JSON ChartSpec, validates with Pydantic, emits via SSE.
+    from rha_rag.viz import make_visualize
+    workflow.add_node("visualize", make_visualize(response_model))
 
     # Entry: skip clarify in fast mode.
     def _route_entry(state: RhaState) -> str:
@@ -223,6 +237,9 @@ def build_graph(retriever, response_model, grader_model):
     workflow.add_edge("grade", "reason")
     workflow.add_edge("reason", "verify")
     workflow.add_edge("verify", "generate_answer")
-    workflow.add_edge("generate_answer", END)
+    # Visualization runs after the answer in BOTH modes — chart spec
+    # follows the prose answer, never precedes it.
+    workflow.add_edge("generate_answer", "visualize")
+    workflow.add_edge("visualize", END)
 
     return workflow.compile()

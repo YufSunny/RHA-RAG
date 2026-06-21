@@ -1,0 +1,21 @@
+code,system,description,frequency_2023
+P0420,Catalyst,Catalyst System Efficiency Below Threshold Bank 1,1842
+P0430,Catalyst,Catalyst System Efficiency Below Threshold Bank 2,612
+P0171,Fuel/Air,System Too Lean Bank 1,1503
+P0172,Fuel/Air,System Too Rich Bank 1,488
+P0174,Fuel/Air,System Too Lean Bank 2,933
+P0300,Ignition,Random/Multiple Cylinder Misfire Detected,1120
+P0301,Ignition,Cylinder 1 Misfire Detected,745
+P0302,Ignition,Cylinder 2 Misfire Detected,612
+P0303,Ignition,Cylinder 3 Misfire Detected,538
+P0304,Ignition,Cylinder 4 Misfire Detected,501
+P0128,Thermostat,Coolant Temperature Below Thermostat Regulating Temperature,877
+P0442,EVAP,EVAP System Small Leak Detected,690
+P0455,EVAP,EVAP System Gross Leak Detected,312
+P0506,Idle,Idle Air Control System RPM Lower Than Expected,405
+P0507,Idle,Idle Air Control System RPM Higher Than Expected,198
+P0011,Camshaft,Camshaft Position A Timing Over-Advanced Bank 1,356
+P0014,Exhaust,Exhaust Camshaft Position Timing Over-Advanced Bank 1,244
+P0136,O2 Sensor,O2 Sensor Circuit Malfunction Bank 1 Sensor 2,521
+P0606,PCM,ECM/PCM Processor,88
+P0700,Transmission,Transmission Control System,432

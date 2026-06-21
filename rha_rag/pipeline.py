@@ -105,7 +105,7 @@ def ocr_pdf(
 # File loaders
 # ═══════════════════════════════════════════════════════════════
 
-SUPPORTED = (".txt", ".md", ".html", ".htm", ".pdf", ".jpg", ".jpeg", ".png", ".docx")
+SUPPORTED = (".txt", ".md", ".csv", ".html", ".htm", ".pdf", ".jpg", ".jpeg", ".png", ".docx")
 
 
 def _safe_path(path: str) -> str:
@@ -198,6 +198,11 @@ def load_all_documents(
                 progress_callback(f"Loading {name}", idx + 1, len(all_files))
 
             if ext in (".txt", ".md"):
+                docs.extend(load_text(fp))
+            elif ext == ".csv":
+                # CSV: treat as plain text. Retrieval works on the raw
+                # rows; the visualize tool / frontend turn them into
+                # charts downstream. No structural conversion for MVP.
                 docs.extend(load_text(fp))
             elif ext in (".html", ".htm"):
                 docs.extend(load_html(fp))

@@ -77,12 +77,15 @@ print(f"  LLM: {models['llm'].model_name}")
 print("Loading documents...")
 DATA_DIR = Path("data/local")
 UPLOAD_DIR = Path("uploads")
+AUTO_SEED_DIR = Path("data/auto-seed")
 dirs = [str(UPLOAD_DIR)] if UPLOAD_DIR.exists() and any(UPLOAD_DIR.iterdir()) else []
 if DATA_DIR.exists() and any(DATA_DIR.iterdir()):
     dirs.append(str(DATA_DIR))
+if AUTO_SEED_DIR.exists() and any(AUTO_SEED_DIR.iterdir()):
+    dirs.append(str(AUTO_SEED_DIR))
 
 if not dirs:
-    print("No documents found. Place files in data/local/ or uploads/")
+    print("No documents found. Place files in data/auto-seed/, data/local/, or uploads/")
     sys.exit(1)
 
 docs = load_all_documents(
@@ -106,7 +109,12 @@ print(f"\n{'=' * 60}")
 print("Streaming graph...\n")
 
 for chunk in graph.stream(
-    {"question": question, "history": "", "messages": [HumanMessage(content=question)]}
+    {
+        "question": question,
+        "history": "",
+        "fast_mode": True,
+        "messages": [HumanMessage(content=question)],
+    }
 ):
     for node_name, update in chunk.items():
         msg = update["messages"][-1]
