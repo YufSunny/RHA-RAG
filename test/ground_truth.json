@@ -25,59 +25,59 @@
     "relevant_sources": ["set_theory.txt"]
   },
   {
-    "question": "How many vehicles did BYD sell in 2024?",
+    "question": "How many vehicles did Automaker A sell in 2024?",
     "reference_answer": "4,272,145 vehicles in 2024, up 41.3% from 3,024,417 in 2023.",
-    "relevant_sources": ["byd-annual.csv"],
+    "relevant_sources": ["automaker-annual.csv"],
     "expects_chart": true,
     "chart_type": "bar"
   },
   {
-    "question": "What is BYD's best-selling model in 2025?",
-    "reference_answer": "BYD Song (Dynasty SUV) — 788,003 units in 2025, though down 20.91% YoY.",
-    "relevant_sources": ["byd-models-2025.csv"],
+    "question": "What is Automaker A's best-selling model in 2025?",
+    "reference_answer": "SUV-Pro (Dynasty series) — 788,003 units in 2025, though down 20.91% YoY.",
+    "relevant_sources": ["automaker-models-2025.csv"],
     "expects_chart": true,
     "chart_type": "bar"
   },
   {
-    "question": "How has BYD's overseas sales share grown from 2022 to 2025?",
+    "question": "How has Automaker A's overseas sales share grown from 2022 to 2025?",
     "reference_answer": "Overseas share grew from 4.3% (77,356 / 1,802,464) in 2022 to 22.9% (1,040,000 / 4,602,436) in 2025 — a 5x+ increase in the share.",
-    "relevant_sources": ["byd-annual.csv"],
+    "relevant_sources": ["automaker-annual.csv"],
     "expects_chart": true,
     "chart_type": "line"
   },
   {
-    "question": "How many BEVs vs PHEVs did BYD sell in 2024?",
-    "reference_answer": "BEV: 1,764,992; PHEV: 2,485,378 — PHEV outsold BEV by ~720k units, a 72.8% YoY jump in PHEV sales driven by DM-i technology.",
-    "relevant_sources": ["byd-annual.csv"],
+    "question": "How many BEVs vs PHEVs did Automaker A sell in 2024?",
+    "reference_answer": "BEV: 1,764,992; PHEV: 2,485,378 — PHEV outsold BEV by ~720k units, a 72.8% YoY jump in PHEV sales driven by the proprietary PHEV drivetrain.",
+    "relevant_sources": ["automaker-annual.csv"],
     "expects_chart": true,
     "chart_type": "bar"
   },
   {
-    "question": "What is BYD's share of the global plug-in EV market in 2025?",
-    "reference_answer": "19% — making BYD the world's #1 plug-in EV maker, ahead of Tesla (9%), VW Group (5%), Geely–Volvo (5%), and SAIC (4%).",
-    "relevant_sources": ["byd-market-share.md"],
+    "question": "What is Automaker A's share of the global plug-in EV market in 2025?",
+    "reference_answer": "19% — making Automaker A the world's #1 plug-in EV maker, ahead of Tesla (9%), VW Group (5%), Geely–Volvo Car Group (5%), and SAIC (4%).",
+    "relevant_sources": ["automaker-market-share.md"],
     "expects_chart": true
   },
   {
-    "question": "What is BYD's share of the China NEV market in 2024 per CPCA retail?",
+    "question": "What is Automaker A's share of the China NEV market in 2024 per CPCA retail?",
     "reference_answer": "34.1% — 3,718,281 retail NEV units, ranking #1 ahead of Tesla (6.0%, 657,102 units).",
-    "relevant_sources": ["byd-market-share.md"]
+    "relevant_sources": ["automaker-market-share.md"]
   },
   {
-    "question": "Which was BYD's strongest quarter and how many vehicles did it sell?",
-    "reference_answer": "Q4 2024 was BYD's best quarter ever with 1,524,270 vehicle sales.",
-    "relevant_sources": ["byd-quarterly.csv"],
+    "question": "Which was Automaker A's strongest quarter and how many vehicles did it sell?",
+    "reference_answer": "Q4 2024 was Automaker A's best quarter ever with 1,524,270 vehicle sales.",
+    "relevant_sources": ["automaker-quarterly.csv"],
     "expects_chart": true,
     "chart_type": "bar"
   },
   {
-    "question": "How long did it take the BYD Seagull (Dolphin Mini) to reach 1 million units?",
+    "question": "How long did it take the Automaker A City-EV to reach 1 million units?",
     "reference_answer": "27 months from its April 2023 launch — the fastest pure-electric A00-class model to reach 1M units globally.",
-    "relevant_sources": ["byd-seagull.md"]
+    "relevant_sources": ["automaker-city-ev.md"]
   },
   {
-    "question": "How many units did the BYD Seagull sell on launch day in Brazil?",
+    "question": "How many units did the Automaker A City-EV sell on launch day in Brazil?",
     "reference_answer": "7,635 units on its first day in February 2024 — a record for first-day automotive sales in the country.",
-    "relevant_sources": ["byd-seagull.md"]
+    "relevant_sources": ["automaker-city-ev.md"]
   }
 ]

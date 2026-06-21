@@ -1,4 +1,4 @@
-"""Tests for the bundled data/auto-seed/ corpus (BYD focus).
+"""Tests for the bundled data/auto-seed/ corpus (Automaker A focus).
 
 Covers:
 - All expected files exist.
@@ -17,11 +17,11 @@ SEED_DIR = Path("data/auto-seed")
 
 EXPECTED_FILES = {
     "README.md",
-    "byd-annual.csv",
-    "byd-quarterly.csv",
-    "byd-models-2025.csv",
-    "byd-market-share.md",
-    "byd-seagull.md",
+    "automaker-annual.csv",
+    "automaker-quarterly.csv",
+    "automaker-models-2025.csv",
+    "automaker-market-share.md",
+    "automaker-city-ev.md",
 }
 
 
@@ -51,30 +51,30 @@ class TestManifest:
 
 
 class TestCsv:
-    def test_byd_annual_columns(self, seed_dir):
-        text = (seed_dir / "byd-annual.csv").read_text(encoding="utf-8")
+    def test_automaker_annual_columns(self, seed_dir):
+        text = (seed_dir / "automaker-annual.csv").read_text(encoding="utf-8")
         header = text.splitlines()[0].split(",")
         assert header == ["year", "production", "sales", "bev_sales",
                           "phev_sales", "china_sales", "overseas_sales"]
         # Body should cover 2019-2025 (7 years).
         assert len(text.splitlines()) >= 8
 
-    def test_byd_quarterly_columns(self, seed_dir):
-        text = (seed_dir / "byd-quarterly.csv").read_text(encoding="utf-8")
+    def test_automaker_quarterly_columns(self, seed_dir):
+        text = (seed_dir / "automaker-quarterly.csv").read_text(encoding="utf-8")
         header = text.splitlines()[0].split(",")
         assert header == ["quarter", "sales", "overseas_sales", "note"]
         # Body should cover 2023-Q2 through 2025-Q4 (11 rows).
         assert len(text.splitlines()) >= 12
 
-    def test_byd_models_2025_columns(self, seed_dir):
-        text = (seed_dir / "byd-models-2025.csv").read_text(encoding="utf-8")
+    def test_automaker_models_2025_columns(self, seed_dir):
+        text = (seed_dir / "automaker-models-2025.csv").read_text(encoding="utf-8")
         header = text.splitlines()[0].split(",")
         assert header == ["model", "series", "segment", "units_2025", "yoy_pct"]
-        # Body should have at least 10 BYD models.
+        # Body should have at least 10 Automaker A models.
         assert len(text.splitlines()) >= 11
 
     def test_csv_rows_have_parseable_numbers(self, seed_dir):
-        text = (seed_dir / "byd-annual.csv").read_text(encoding="utf-8")
+        text = (seed_dir / "automaker-annual.csv").read_text(encoding="utf-8")
         for line in text.splitlines()[1:]:
             parts = line.split(",")
             assert len(parts) == 7, f"wrong column count: {line!r}"
@@ -88,7 +88,7 @@ class TestCsv:
 
     def test_annual_2024_totals_consistent(self, seed_dir):
         # 2024 bev + phev should equal passenger sales (within rounding).
-        text = (seed_dir / "byd-annual.csv").read_text(encoding="utf-8")
+        text = (seed_dir / "automaker-annual.csv").read_text(encoding="utf-8")
         row_2024 = next(l for l in text.splitlines() if l.startswith("2024,"))
         parts = row_2024.split(",")
         bev, phev = int(parts[3]), int(parts[4])
@@ -98,8 +98,8 @@ class TestCsv:
 
 class TestMarkdown:
     @pytest.mark.parametrize("name", [
-        "byd-market-share.md",
-        "byd-seagull.md",
+        "automaker-market-share.md",
+        "automaker-city-ev.md",
     ])
     def test_markdown_non_empty(self, seed_dir, name):
         text = (seed_dir / name).read_text(encoding="utf-8").strip()

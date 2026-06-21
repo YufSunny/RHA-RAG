@@ -1,49 +1,49 @@
-# RHA-RAG
+# visualized RAG for automotive industry: demo
 
-**Reasoning-Heavy Agentic RAG**
+**An RAG system for the automotive industry, built on top of [RHA-RAG](https://github.com/...)'s proof-chain engine, with chart visualization as a first-class tool-calling capability.**
 
 [English](README.md) | [中文](README_zh.md)
 
-Upload your documents, ask a research question, and watch an AI agent **retrieve, grade, reason in formal logical steps, verify the deduction, and produce a fully cited answer** — streamed to the browser in real time, node by node. Numeric answers come with a **chart** (bar / line / pie / scatter / table) rendered from the cited data, with a one-click **PNG download**.
+Ask *"How many BEVs vs PHEVs did Automaker A sell in 2024?"* and RAG for automotive industry demo **retrieves** the relevant row from your automotive corpus, **cites** the source file and label, emits a strict-JSON `ChartSpec` for the numbers, and renders a full-width **ECharts** bar chart with a one-click **⬇ PNG** download — streamed node by node to the browser via SSE. Switch to **Full** mode and the same question goes through an explicit proof chain (clarify → grade → reason → verify → answer → visualize) with each step auditable.
 
-Most RAG systems paste retrieved text into the prompt and let the model free-associate an answer. RHA-RAG doesn't. It forces the model to build an explicit **proof chain** — each step either cited from a source, marked as common knowledge, or deduced from prior steps — and then a separate **verifier** node checks that chain before any final answer is written. Every claim in the answer must cite a label from the source *and* the file it came from.
+The bundled seed corpus is **Automaker A** — annual/quarterly/model-level sales, global market share, and the City-EV launch — so the system answers real automotive questions on first boot with zero uploads. Drop your own CAAM / CPCA / OEM / TSB / service-manual files alongside and the same pipeline answers them.
 
-The bundled seed corpus covers **BYD Auto** — annual / quarterly / model-level sales, market share, and the Seagull launch — so the demo answers real automotive questions on first boot with no uploads. Drop your own files alongside to extend.
-
-The web UI is a full **chat app**: conversation history persisted to PostgreSQL, a sidebar for switching between past sessions, chat-bubble display with markdown + LaTeX rendering, a stop button, **fast mode** (default — skip reasoning, just retrieve, answer, and chart), and an in-place **chart card** with PNG export.
-
-Built with [LangGraph](https://langchain-ai.github.io/langgraph/), [Milvus Lite](https://milvus.io/docs), [PostgreSQL](https://www.postgresql.org/), [ECharts](https://echarts.apache.org/), and [Docker](https://www.docker.com/).
+Built on [LangGraph](https://langchain-ai.github.io/langgraph/) (orchestration), [Milvus Lite](https://milvus.io/docs) (vector store), [PostgreSQL](https://www.postgresql.org/) (conversation memory), [ECharts](https://echarts.apache.org/) (chart rendering), and [Docker](https://www.docker.com/).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
-[![LangGraph](https://img.shields.io/badge/orchestration-LangGraph-orange.svg)](https://langchain-ai.github.io/langgraph/)
-[![Milvus](https://img.shields.io/badge/vectorstore-Milvus%20Lite-blueviolet.svg)](https://milvus.io/)
-[![Postgres](https://img.shields.io/badge/memory-PostgreSQL-336791.svg)](https://www.postgresql.org/)
+[![Domain](https://img.shields.io/badge/domain-Automotive%20%2F%20NEV-0066cc.svg)](#-what-this-system-does)
 [![Charts](https://img.shields.io/badge/charts-ECharts%205-aa2233.svg)](https://echarts.apache.org/)
+[![Orchestration](https://img.shields.io/badge/orchestration-LangGraph-orange.svg)](https://langchain-ai.github.io/langgraph/)
+[![Vector store](https://img.shields.io/badge/vectorstore-Milvus%20Lite-blueviolet.svg)](https://milvus.io/)
+[![Memory](https://img.shields.io/badge/memory-PostgreSQL-336791.svg)](https://www.postgresql.org/)
 
 ![screenshot](imgs/demo.png)
 
 ---
 
-## ✨ What makes it different
+## ✨ What this system does
 
-| Ordinary RAG | RHA-RAG |
-|---|---|
-| Retrieve → stuff context → answer | Retrieve → **grade → reason → verify** → answer → **visualize** |
-| Answer is the model's first guess | Answer is the *verified* conclusion of a proof chain |
-| Citations optional / vague | Every claim cites a source **label + filename** (whatever the source uses) |
-| No check on the model's logic | A dedicated verifier audits each deduction step |
-| One shot | Agentic: the model decides whether to search at all |
-| Plain text answer | Cited answer + auto-rendered **chart** with PNG export |
+RAG for automotive industry demo is a **domain-tuned RAG + visualization tool-calling** system for the automotive industry. It is not a generic chatbot. The two non-negotiable capabilities:
 
-The reasoning chain uses a formal-proof notation:
+### 1. Cited answers, not free-association
 
-| Marker | Meaning |
-|---|---|
-| `@cite` | A statement quoted/cited from a source document |
-| `@common` | Common knowledge (textbook-standard) |
-| `@MP` | Modus ponens — deduced from prior steps |
-| `@TA` | Tautology / quantifier axiom |
+Every claim in the final answer cites a **label** from the source (e.g. `Table 3 — P0420 frequency by model year`) **and** the source **filename** (e.g. `toyota-p0420.md`). A retrieved document is treated as *data only* — never as instructions — so prompt-injected text inside a PDF cannot redirect the pipeline.
+
+### 2. Chart as a tool-calling capability
+
+When the answer contains numeric data (sales, frequencies, market share, monthly trends), a second LLM call emits a **Pydantic-validated `ChartSpec`**:
+
+```text
+{type, title, x_label, y_label, data[], citation{filename,label}, confidence, note}
+```
+
+The frontend renders it as a full-width ECharts card with axes, tooltips, data-zoom (for time series), and a **⬇ PNG** export button. The chart and the prose answer are linked by the same `citation`. A chart without a source citation is rejected at the Pydantic layer.
+
+The chart works in **both** modes:
+
+- **Fast mode (default)** — `generate_query → retrieve → generate_answer → visualize`. Low latency for "just answer + chart" workflows.
+- **Full mode** — `clarify → generate_query → retrieve → grade → reason → verify → generate_answer → visualize`. Adds the proof chain when the question is novel or high-stakes.
 
 ---
 
@@ -51,29 +51,29 @@ The reasoning chain uses a formal-proof notation:
 
 ### Prerequisites
 
-- **Python 3.12+** — any environment works (system, venv, conda).
-- **Docker** (recommended) or **Python 3.12+** for local install.
+- **Docker** (recommended) — includes PostgreSQL.
+- **Python 3.12+** (alternative) — for local install.
 
 ### Docker (recommended)
 
 ```bash
-cp .env.docker.example .env       # edit .env → paste API keys
+cp .env.docker.example .env          # paste API keys
 docker compose --env-file .env up --build
-# → http://localhost:7500   (PORT env var, defaults to 7500)
+# → http://localhost:7500  (PORT env var, default 7500)
 ```
 
-PostgreSQL is included as a companion container.  Everything is pre-configured.
+PostgreSQL is included as a companion container. No external services required.
 
 ### Local install
 
-**Linux / macOS**
+#### Linux / macOS
 
 ```bash
 pip install -r requirements.txt
 python server.py
 ```
 
-**Windows (PowerShell)**
+#### Windows (PowerShell)
 
 ```powershell
 pip install -r requirements.txt
@@ -82,29 +82,29 @@ python server.py
 
 ### Configuration
 
-All settings live in **[config.py](config.py)** — uncomment and fill in values,
-or let the server prompt you interactively at startup. In Docker, set env vars
-instead (see `.env.docker.example`).
+All settings live in **[config.py](config.py)**. In Docker, set env vars in `.env`.
 
 | Env variable | Service | Purpose |
-|-------------|---------|---------|
-| `ZAI_API_KEY` | [Z.ai](https://www.z.ai/) | GLM-OCR for PDF/image processing |
+| --- | --- | --- |
+| `ZAI_API_KEY` | [Z.ai](https://www.z.ai/) | GLM-OCR for PDF / image processing |
 | `QWEN_API_KEY` | [DashScope](https://dashscope.aliyun.com/) | Qwen `text-embedding-v4` embeddings |
 | `OPENAI_API_KEY` | [DeepSeek](https://api.deepseek.com) | DeepSeek V4 Pro LLM |
 | `PORT` | — | Host:container port (default `7500`) |
 | `DEFAULT_FAST_MODE` | — | `true` / `false` — default mode for `/api/chat` (default `true`) |
 
-`DATABASE_URL` sets the PostgreSQL connection (or `""` for in-memory).
-`MAX_HISTORY_TURNS` caps prior-turn context (default 6; 0 disables).
-`LLM_THINKING` enables DeepSeek thinking mode (default true).
+`DATABASE_URL` sets the PostgreSQL connection (or `""` for in-memory). `MAX_HISTORY_TURNS` caps prior-turn context (default 6; 0 disables). `LLM_THINKING` enables DeepSeek thinking mode (default `true`).
 
-Without keys the server still starts — upload files, set keys, then click **Re-index**.
-
-Drop documents into `data/local/` (or upload via the web UI), type a research question, and watch the pipeline execute in real time.
+Without API keys the server still starts — upload files, set keys, then click **Re-index**.
 
 ---
 
 ## 🧠 How it works
+
+### Fast mode (default)
+
+```text
+generate_query → retrieve → generate_answer → visualize → END
+```
 
 ### Full mode (proof chain)
 
@@ -135,35 +135,33 @@ verify           Validate each deduction step against inference rules
 generate_answer  Produce the final answer with explicit source citations
     │
     ▼
-visualize        Render a ChartSpec (bar / line / pie / scatter / table) from cited numbers
+visualize        Tool call: emit a ChartSpec (Pydantic) for any numeric answer
     │
     ▼
 END
 ```
 
-### Fast mode (default)
+Each node streams live to the web UI via Server-Sent Events. Click **Full** in the top bar to switch modes; click **Fast** to return.
 
-```text
-generate_query → retrieve → generate_answer → visualize → END
-```
+**Node responsibilities in an automotive context:**
 
-Each node streams live to the web UI via Server-Sent Events.
-
-**The flow in words:**
-
-1. **clarify** — reformats your question into a set of *verifiable* logical statements: "if a candidate answer is provided, one should be able to check whether it satisfies each statement." These become the spec the verifier checks against.
-2. **generate_query** — the agent either calls the retrieval tool or answers directly (this is the one conditional branch in the graph).
-3. **retrieve** — semantic search over Milvus (top-5 chunks).
-4. **grade** — a structured-output LLM grades the retrieved docs `yes`/`no` for relevance. It's told to treat documents as *data only* (prompt-injection hardening).
+1. **clarify** — reformats the question into verifiable statements. *"Is the claim that Automaker A's 2024 BEV sales were 1,764,992 units?"*
+2. **generate_query** — decides whether to call `retrieve` or answer directly.
+3. **retrieve** — semantic search over Milvus (top-5 chunks) — CSV rows, markdown sections, TSB text, all indexed as plain text.
+4. **grade** — a structured-output LLM grades each retrieved chunk `yes`/`no` for relevance. Documents are treated as *data only* (prompt-injection hardening — a PDF pretending to be instructions is rejected).
 5. **reason** — "you are a logician": build a proof chain where each step is `@cite`, `@common`, or deduced from prior steps.
-6. **verify** — audit the chain: is each statement valid? does it lead to an answer? Emit the verified answer, or flag the flaw.
-7. **generate_answer** — write the final answer, citing every claim with a label from the source (Definition, Theorem, section number, heading, …) and the source filename.
-8. **visualize** — for any numeric answer, a second LLM call emits a strict-JSON `ChartSpec` (Pydantic-validated) with `type`, `data`, `confidence` (`extracted` or `estimated`), and either `citation` (file + label) or `note`. Rendered client-side with [ECharts](https://echarts.apache.org/) as a full-width chart card; one-click **⬇ PNG** download (canvas `getDataURL`).
+6. **verify** — audit the chain. Flag contradictions, missing citations, or unsound deductions before the answer is written.
+7. **generate_answer** — write the final answer, citing every claim with a label from the source (Table number, section heading, row range) and the source filename.
+8. **visualize** — **tool call.** A second LLM call inspects the answer + retrieved context and emits a strict-JSON `ChartSpec`. Pydantic-validated server-side; rejected specs never reach the frontend. Rendered client-side with ECharts.
 
-A **Fast mode** toggle in the UI (on by default) skips `clarify` / `grade` / `reason` / `verify`
-and runs `generate_query → retrieve → generate_answer → visualize` — faster, for when you
-just want a cited answer + chart without the proof chain. Click the button to flip to **Full**
-mode; click again to return to **Fast**.
+The reasoning chain uses a formal-proof notation:
+
+| Marker | Meaning |
+| --- | --- |
+| `@cite` | A statement quoted/cited from a source document |
+| `@common` | Common knowledge (textbook-standard) |
+| `@MP` | Modus ponens — deduced from prior steps |
+| `@TA` | Tautology / quantifier axiom |
 
 > For the full construction story — file by file, with the design decisions and gotchas — see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -172,40 +170,41 @@ mode; click again to return to **Fast**.
 ## 💬 Conversation memory
 
 The chat is multi-turn: within a browser session, each question sees the prior
-Q&A, so follow-ups resolve references ("is *it* compact?" → "is a topological
-space compact?"), retrieval is conversation-aware, and answers can build on
-earlier turns.
+Q&A, so follow-ups resolve references (*"is it compact?"* → *"is a topological
+space compact?"*; *"which of those had the biggest jump?"* → references the
+prior model's answer), retrieval is conversation-aware, and answers can build
+on earlier turns.
 
 - **Per-browser session.** A session id is stored in `localStorage` (isolated
   per tab, survives reload). The sidebar lists all past conversations — click
-  to switch between them. History is persisted to PostgreSQL (see
-  `DATABASE_URL` in [config.py](config.py)). If Postgres is unreachable the
-  server falls back to an in-memory store (cleared on restart).
+  to switch. History is persisted to PostgreSQL. If Postgres is unreachable
+  the server falls back to an in-memory store (cleared on restart).
 - **What sees history:** `clarify` (resolves follow-up references), the
   retrieval decision (`generate_query`), and the final `generate_answer`. The
-  `reason`/`verify` proof chain stays grounded in retrieved sources only.
-- **Tunable depth.** The number of prior turns fed back is set by
-  `MAX_HISTORY_TURNS` in [config.py](config.py) (default 6; set 0 to disable).
-  Edit and restart.
+  `reason` / `verify` proof chain stays grounded in retrieved sources only.
+- **Tunable depth.** `MAX_HISTORY_TURNS` in [config.py](config.py) (default 6;
+  set 0 to disable).
 - **Clear chat.** The "Clear chat" button (or `POST /api/clear`) deletes the
-  session's history from PostgreSQL (and the in-memory mirror).
+  session's history from PostgreSQL.
 
 ---
 
 ## 🏗️ Architecture
 
 | Component | Technology |
-|-----------|------------|
+| --- | --- |
+| Domain | **Automotive industry** — OEMs, NEV market data, TSBs, service manuals, DTCs |
+| Visualization | **ECharts 5** via CDN; `ChartSpec` Pydantic model; PNG export via `getDataURL` |
 | Orchestration | LangGraph `StateGraph` (8 nodes, 1 conditional edge, `RhaState`) |
+| Proof chain | Formal `@cite` / `@common` / `@MP` / `@TA` step notation, verifier node |
 | Conversation memory | Per-session Q&A history persisted to PostgreSQL (fallback: in-memory) |
 | LLM | DeepSeek V4 Pro via `ChatDeepSeekFixed` (thinking-mode patches) |
 | Embeddings | Qwen `text-embedding-v4` (batch size ≤ 10) |
 | Vector store | Milvus Lite (local file `milvus.db`, COSINE / AUTOINDEX) |
 | OCR | GLM-OCR via Z.ai (`ZaiClient`, data-URI format) |
 | PDF rendering | PyMuPDF (pages → PNG → OCR) |
-| Visualization | ECharts 5 via CDN, `ChartSpec` Pydantic model, PNG export via `getDataURL` |
 | Web server | FastAPI + real-time SSE streaming (node-by-node) |
-| Frontend | Vanilla JS chat app (bubbles, markdown/LaTeX, sidebar sessions, stop btn, ECharts card) |
+| Frontend | Vanilla JS chat app — bubbles, markdown / LaTeX, sidebar sessions, ECharts card, PNG export, fast/full toggle |
 | Deployment | Docker Compose (app + PostgreSQL), default port 7500 |
 
 ---
@@ -215,27 +214,29 @@ earlier turns.
 Drop these in `data/local/` or upload via the web UI:
 
 | Type | Extensions | Processing |
-|------|-----------|------------|
+| --- | --- | --- |
 | Plain text | `.txt` `.md` | Direct read |
-| CSV | `.csv` | Direct read (header + rows joined as text) |
+| **CSV** (sales tables, DTC lists) | `.csv` | Direct read (header + rows joined as text) |
 | HTML | `.html` `.htm` | BeautifulSoup text extraction |
 | Word | `.docx` | PyMuPDF text extraction |
-| PDF | `.pdf` | GLM-OCR (rendered page-by-page as PNG) |
-| Images | `.jpg` `.jpeg` `.png` | GLM-OCR |
+| PDF (TSBs, service manuals) | `.pdf` | GLM-OCR (rendered page-by-page as PNG) |
+| Images (dashboards, photos) | `.jpg` `.jpeg` `.png` | GLM-OCR |
 
 OCR results are cached to `<file>.ocr.md` (mtime-checked), so re-indexing is fast and only re-OCRs files that changed.
 
 ### Bundled seed corpus
 
-`data/auto-seed/` ships with five public-source **BYD** documents so the demo works on first boot with zero uploads:
+`data/auto-seed/` ships with five public-source **Automaker A** documents so the demo works on first boot with zero uploads:
 
-- `byd-annual.csv` — annual production, sales, BEV/PHEV split, China vs overseas 2019-2025
-- `byd-quarterly.csv` — quarterly sales 2023-Q2 → 2025-Q4
-- `byd-models-2025.csv` — top 13 BYD model families 2025 with YoY change
-- `byd-market-share.md` — global plug-in EV share 2025, China NEV share 2024 (CPCA)
-- `byd-seagull.md` — Dolphin Mini / Seagull product profile (BYD Global press release, 30 June 2025)
+- `automaker-annual.csv` — annual production, sales, BEV/PHEV split, China vs overseas 2019–2025
+- `automaker-quarterly.csv` — quarterly sales 2023-Q2 → 2025-Q4
+- `automaker-models-2025.csv` — top 13 Automaker A model families 2025 with YoY change
+- `automaker-market-share.md` — global plug-in EV share 2025, China NEV share 2024 (CPCA)
+- `automaker-city-ev.md` — City-EV product profile (Automaker A Global press release, 30 June 2025)
 
-See [data/auto-seed/README.md](data/auto-seed/README.md) for sources and licensing.
+All data is from public press releases, CPCA / CAAM monthly reports, Statista compilations, and CnEVPost reporting. No proprietary or restricted material. See [data/auto-seed/README.md](data/auto-seed/README.md) for sources and licensing.
+
+Drop your own CAAM monthly sales, CPCA segment share, OEM TSBs, or service manuals into `data/local/` to extend the system to your fleet / brand.
 
 ---
 
@@ -254,17 +255,17 @@ See [data/auto-seed/README.md](data/auto-seed/README.md) for sources and licensi
 │   ├── llm.py             ChatDeepSeekFixed + model config
 │   ├── pipeline.py        Loaders, OCR (+ .ocr.md cache), embeddings, Milvus store
 │   ├── graph.py           LangGraph nodes + assembly
-│   └── viz.py             ChartSpec Pydantic model + visualize node factory
+│   └── viz.py             ChartSpec Pydantic model + visualize (tool-call) node
 ├── prompts/               LLM prompt templates (loaded at runtime)
 │   ├── clarify.txt  generate.txt  grade.txt  reason.txt  verify.txt  visualize.txt
 ├── templates/
 │   └── index.html         Web UI (dark theme, ECharts, streaming)
 ├── data/
-│   ├── local/             Drop documents here
+│   ├── local/             Drop your automotive documents here
 │   ├── uploads/           Or upload via the web UI
-│   └── auto-seed/         BYD seed corpus (auto-loaded on boot)
+│   └── auto-seed/         Automaker A seed corpus (auto-loaded on boot)
 ├── tests/                 pytest unit tests (43 tests, no LLM required)
-├── test/ground_truth.json Eval question set (5 math + 9 BYD)
+├── test/ground_truth.json Eval question set (5 math + 9 Automaker A)
 ├── eval.py                LLM-judge evaluation harness
 ├── requirements.txt
 ├── .env.example
@@ -276,7 +277,7 @@ See [data/auto-seed/README.md](data/auto-seed/README.md) for sources and licensi
 ## 🔌 API endpoints
 
 | Method | Path | Description |
-|--------|------|-------------|
+| --- | --- | --- |
 | `GET` | `/` | Web UI |
 | `GET` | `/api/status` | System status (`ready`, `documents`, `chunks`, `missing_keys`, `errors`) |
 | `GET` | `/api/files` | List all files in `uploads/` and `data/local/` |
@@ -286,18 +287,18 @@ See [data/auto-seed/README.md](data/auto-seed/README.md) for sources and licensi
 | `POST` | `/api/chat` | Ask a question → SSE stream of node outputs (multi-turn; send `session_id`) |
 | `POST` | `/api/clear` | Clear a session's conversation history |
 
-`/api/chat` takes `{"question": "...", "session_id": "..."}` and streams `data: {"node": "...", "content": "...", "done": false}` events, ending with `{"node": "done", "done": true}`. The `session_id` keys the conversation memory (see [Conversation memory](#-conversation-memory)). Returns `503` with `details` if the pipeline isn't ready.
+`/api/chat` takes `{"question": "...", "session_id": "...", "fast": true}` and streams `data: {"node": "...", "content": "...", "done": false}` events, ending with `{"node": "done", "done": true}`. The `visualize` event's `content` is a JSON-encoded `ChartSpec` (validated server-side). The `session_id` keys the conversation memory (see [Conversation memory](#-conversation-memory)). Returns `503` with `details` if the pipeline isn't ready.
 
 ---
 
 ## 💻 CLI usage
 
 ```bash
-python run.py "What is a compact set?"
+python run.py "How many BEVs did Automaker A sell in 2024?"
 # or interactively:
 python run.py
 # or pipe:
-echo "Define continuity" | python run.py
+echo "What is the China NEV market share for Automaker A in 2024?" | python run.py
 ```
 
 Output goes to both stdout and `run.log`. Same pipeline as the web server — handy for debugging changes without booting the server.
@@ -305,6 +306,10 @@ Output goes to both stdout and `run.log`. Same pipeline as the web server — ha
 ---
 
 ## 📝 Notes
+
+### ChartSpec transport
+
+Charts flow through the existing SSE channel — no protocol change. The `visualize` node emits a `HumanMessage` whose `.content` is the JSON spec. The frontend parses it, builds an ECharts option (bar / line / pie / scatter / table), and renders a full-width chart card. PNG export uses `chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#0d1117' })` — works offline, no server roundtrip.
 
 ### DeepSeek V4 patch
 

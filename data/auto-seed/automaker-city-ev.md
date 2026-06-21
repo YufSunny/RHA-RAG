@@ -1,25 +1,31 @@
-# BYD Seagull (Dolphin Mini) — Product & Sales Profile
+# Automaker A — City-EV (Compact City Hatchback) Product & Sales Profile
 
-**Source:** BYD Global press release dated 30 June 2025 (public); the
-section on first-day Brazil sales is taken from the same release.
+**Source:** Automaker A global press release dated 30 June 2025 (public);
+the section on first-day Brazil sales is taken from the same release.
 No proprietary dealer data is used.
+
+> **About this corpus.** This file documents the **City-EV** A00-class
+> BEV sold by the anonymized brand **"Automaker A"**. The car is
+> referred to in public materials as the **"City-EV"** (China domestic
+> name) and **"City-EV Export"** (export name). Treat both names as
+> referring to the same vehicle.
 
 ## 1. Launch & name
 
-- **Internal name:** BYD Dolphin Mini.
-- **Export name:** BYD Seagull.
+- **Domestic name:** Automaker A City-EV.
+- **Export name:** Automaker A City-EV Export.
 - **Launched:** April 2023 in China.
 - **Segment:** A00-class BEV (city car, ~3.78 m long).
 - **Wheelbase:** 2,500 mm.
-- **NEDC range:** 300 km (entry GL); up to 405 km (higher trims).
+- **NEDC range:** 300 km (entry trim); up to 405 km (higher trims).
 
 ## 2. Sales milestones (publicly disclosed)
 
 | Milestone | Date | Units |
-|---|---|---|
+| --- | --- | --- |
 | China launch | April 2023 | — |
 | Cumulative A00-class monthly champion | Apr 2023 – Jun 2025 | 21 months |
-| Best-selling pure-electric sedan (China) | 2023 | 19 months |
+| Best-selling pure-electric hatchback (China) | 2023 | 19 months |
 | #1 A00-class annual sales | 2023 and 2024 | — |
 | Brazil launch (one-day sales record) | Feb 2024 | 7,635 units on day 1 |
 | Brazil cumulative registrations end-2024 | Dec 2024 | 21,968 units |
@@ -34,20 +40,23 @@ No proprietary dealer data is used.
   registrations in Q1 2025.
 - Europe launch: May 2025 across 15 countries (Italy, France,
   Germany, Spain, Hungary, Poland, Switzerland, etc.).
-- Built on e-Platform 3.0, blade battery, 4–6 airbags standard
-  depending on trim, rear-view camera / 360° panoramic view.
+- Built on the proprietary **EV-Platform A**, **LFP battery** pack,
+  4–6 airbags standard depending on trim, rear-view camera / 360°
+  panoramic view.
 
 ## 4. Powertrain & variants
 
 - Single front-mounted motor; ~55 kW peak power (entry).
-- Two battery options: 30 kWh and 38 kWh LFP (blade).
+- Two battery options: 30 kWh and 38 kWh **LFP** (in-house pack).
 - Fast charging: 30 → 80% in ~30 minutes (DC).
 
 ## 5. Pricing (public, indicative)
 
 - China entry price at launch: ~73,800 RMB (~$10,300 USD).
-- Brazil launch price: ~$21,500 USD BRL 99,800 (Feb 2024).
+- Brazil launch price: ~$21,500 USD / BRL 99,800 (Feb 2024).
 
-Sources: `byd-models-2025.csv` (for 2025 unit figures) and the
-30 June 2025 BYD press release "The 1 Millionth BYD DOLPHIN MINI
-(BYD SEAGULL) Rolled Off Production Line".
+## Sources
+
+- `automaker-models-2025.csv` (for 2025 unit figures).
+- Automaker A press release dated 30 June 2025: *"The 1 Millionth
+  Automaker A City-EV Rolled Off the Production Line."*
