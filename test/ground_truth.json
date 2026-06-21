@@ -25,57 +25,59 @@
     "relevant_sources": ["set_theory.txt"]
   },
   {
-    "question": "What is the most common OBD-II diagnostic code for catalytic converter faults?",
-    "reference_answer": "P0420 (Catalyst System Efficiency Below Threshold, Bank 1) — frequency 1842 in the 2023 dataset.",
-    "relevant_sources": ["dtc-codes.csv"],
+    "question": "How many vehicles did BYD sell in 2024?",
+    "reference_answer": "4,272,145 vehicles in 2024, up 41.3% from 3,024,417 in 2023.",
+    "relevant_sources": ["byd-annual.csv"],
     "expects_chart": true,
     "chart_type": "bar"
   },
   {
-    "question": "Which OBD-II code is the second most common for catalyst faults?",
-    "reference_answer": "P0430 (Catalyst System Efficiency Below Threshold, Bank 2) — frequency 612.",
-    "relevant_sources": ["dtc-codes.csv"],
-    "expects_chart": true
+    "question": "What is BYD's best-selling model in 2025?",
+    "reference_answer": "BYD Song (Dynasty SUV) — 788,003 units in 2025, though down 20.91% YoY.",
+    "relevant_sources": ["byd-models-2025.csv"],
+    "expects_chart": true,
+    "chart_type": "bar"
   },
   {
-    "question": "What is NEV penetration share in China for December 2024?",
-    "reference_answer": "47.8% (CAAM monthly data, 2024-12: total 3,337,000 units, NEV 1,595,000).",
-    "relevant_sources": ["caam-monthly-sales.csv"],
-    "expects_chart": true
-  },
-  {
-    "question": "How has NEV penetration in China trended from 2020 to 2024?",
-    "reference_answer": "From ~5% in early 2020 to ~48% by December 2024 — a sustained upward trend.",
-    "relevant_sources": ["caam-monthly-sales.csv"],
+    "question": "How has BYD's overseas sales share grown from 2022 to 2025?",
+    "reference_answer": "Overseas share grew from 4.3% (77,356 / 1,802,464) in 2022 to 22.9% (1,040,000 / 4,602,436) in 2025 — a 5x+ increase in the share.",
+    "relevant_sources": ["byd-annual.csv"],
     "expects_chart": true,
     "chart_type": "line"
   },
   {
-    "question": "Which passenger-car segment gained share the most in China between 2020 and 2024?",
-    "reference_answer": "SUV — from 46.2% (2020) to 56.4% (2024), a gain of ~10 percentage points.",
-    "relevant_sources": ["cpca-segment-share.csv"],
-    "expects_chart": true
-  },
-  {
-    "question": "What is the recommended diagnostic sequence for P0420 on Toyota 2.5L A25A-FKS engines?",
-    "reference_answer": "Pull freeze-frame and fuel-trim data; visually inspect exhaust manifold and pre-cat pipe for soot; compare upstream vs downstream O₂ sensor voltage traces at idle and 2500 rpm; if traces are normal, replace downstream O₂ sensor before condemning the catalyst.",
-    "relevant_sources": ["toyota-p0420.md"]
-  },
-  {
-    "question": "Which model year had the highest reported P0420 cases for the Toyota 2.5L in the TSB data?",
-    "reference_answer": "2017 — 41 cases per 10k vehicles (Table 3 in toyota-p0420.md).",
-    "relevant_sources": ["toyota-p0420.md"],
+    "question": "How many BEVs vs PHEVs did BYD sell in 2024?",
+    "reference_answer": "BEV: 1,764,992; PHEV: 2,485,378 — PHEV outsold BEV by ~720k units, a 72.8% YoY jump in PHEV sales driven by DM-i technology.",
+    "relevant_sources": ["byd-annual.csv"],
     "expects_chart": true,
     "chart_type": "bar"
   },
   {
-    "question": "What is the BMW-specific code 2A78, and what is its generic OBD-II equivalent on some models?",
-    "reference_answer": "2A78 — VANOS intake, mechanical fault. Generic equivalent on some models is P0011.",
-    "relevant_sources": ["bmw-fault-codes.md"]
+    "question": "What is BYD's share of the global plug-in EV market in 2025?",
+    "reference_answer": "19% — making BYD the world's #1 plug-in EV maker, ahead of Tesla (9%), VW Group (5%), Geely–Volvo (5%), and SAIC (4%).",
+    "relevant_sources": ["byd-market-share.md"],
+    "expects_chart": true
   },
   {
-    "question": "What is the normal-use oil-change interval for a current Ford light-duty vehicle?",
-    "reference_answer": "10,000 miles (5,000 under severe use), per the Ford scheduled maintenance table.",
-    "relevant_sources": ["ford-service-intervals.md"]
+    "question": "What is BYD's share of the China NEV market in 2024 per CPCA retail?",
+    "reference_answer": "34.1% — 3,718,281 retail NEV units, ranking #1 ahead of Tesla (6.0%, 657,102 units).",
+    "relevant_sources": ["byd-market-share.md"]
+  },
+  {
+    "question": "Which was BYD's strongest quarter and how many vehicles did it sell?",
+    "reference_answer": "Q4 2024 was BYD's best quarter ever with 1,524,270 vehicle sales.",
+    "relevant_sources": ["byd-quarterly.csv"],
+    "expects_chart": true,
+    "chart_type": "bar"
+  },
+  {
+    "question": "How long did it take the BYD Seagull (Dolphin Mini) to reach 1 million units?",
+    "reference_answer": "27 months from its April 2023 launch — the fastest pure-electric A00-class model to reach 1M units globally.",
+    "relevant_sources": ["byd-seagull.md"]
+  },
+  {
+    "question": "How many units did the BYD Seagull sell on launch day in Brazil?",
+    "reference_answer": "7,635 units on its first day in February 2024 — a record for first-day automotive sales in the country.",
+    "relevant_sources": ["byd-seagull.md"]
   }
 ]

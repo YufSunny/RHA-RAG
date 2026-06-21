@@ -75,7 +75,7 @@ Docker Compose + Postgres) are the implementation surface. The
 
 A single tool surfaced to the LLM alongside retrieval:
 
-```
+```text
 visualize(intent: str, source_refs: list[str]) -> ChartSpec
 ```
 
@@ -137,7 +137,7 @@ SVG is acceptable for `table` only.
 
 #### Project structure (additions on top of RHA-RAG)
 
-```
+```text
 .
 ├── server.py                       unchanged
 ├── run.py                          fast_mode=true is the default invocation
