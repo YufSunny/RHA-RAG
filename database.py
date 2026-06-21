@@ -130,3 +130,55 @@ def clear_session(session_id: str):
             text("DELETE FROM conversation_messages WHERE session_id = :sid"),
             {"sid": session_id},
         )
+
+
+def list_sessions() -> list[dict]:
+    """Return all sessions with preview info, newest first."""
+    if not _ensure_db():
+        return []
+    with _engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT session_id,
+                       MAX(created_at) AS updated_at,
+                       COUNT(*) AS messages,
+                       (SELECT LEFT(content, 80)
+                        FROM conversation_messages m2
+                        WHERE m2.session_id = m1.session_id
+                        ORDER BY seq DESC LIMIT 1) AS last_preview
+                FROM conversation_messages m1
+                GROUP BY session_id
+                ORDER BY updated_at DESC
+            """)
+        ).mappings().all()
+    return [
+        {
+            "session_id": r["session_id"],
+            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+            "messages": r["messages"],
+            "last_preview": r["last_preview"],
+        }
+        for r in rows
+    ]
+
+
+def get_session_history(session_id: str) -> list[dict]:
+    """Return all messages for a session, ordered by seq."""
+    if not _ensure_db() or not session_id:
+        return []
+    with _engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT role, content, created_at FROM conversation_messages "
+                "WHERE session_id = :sid ORDER BY seq"
+            ),
+            {"sid": session_id},
+        ).mappings().all()
+    return [
+        {
+            "role": r["role"],
+            "content": r["content"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]

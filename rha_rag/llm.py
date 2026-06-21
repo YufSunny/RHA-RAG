@@ -39,7 +39,14 @@ def create_llms():
     _use_thinking = _is_deepseek and LLM_THINKING
 
     class _Patched(ChatDeepSeek):
-        """Patches the request payload for DeepSeek thinking mode when enabled."""
+        """Patches the request payload for DeepSeek compatibility.
+
+        The three message-format patches (reasoning_content preservation,
+        list serialisation, tool_choice demotion) apply to ALL DeepSeek
+        models because some are always in thinking mode.  The explicit
+        ``thinking`` toggle + ``reasoning_effort`` are only injected when
+        ``LLM_THINKING`` is enabled.
+        """
 
         def _get_request_payload(
             self,
@@ -49,38 +56,39 @@ def create_llms():
             **kwargs: Any,
         ) -> dict:
             payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+            if not _is_deepseek:
+                return payload
 
+            # --- always-on DeepSeek patches ---
+            # Preserve reasoning_content across tool-call round-trips.
+            input_messages = self._convert_input(input_).to_messages() or []
+            for idx, message in enumerate(payload["messages"]):
+                rc = input_messages[idx].additional_kwargs.get("reasoning_content")
+                if rc and message["role"] == "assistant":
+                    message["reasoning_content"] = rc
+                if message["role"] == "tool" and isinstance(message["content"], list):
+                    message["content"] = json.dumps(message["content"])
+                elif message["role"] == "assistant" and isinstance(
+                    message["content"], list
+                ):
+                    text_parts = [
+                        b.get("text", "")
+                        for b in message["content"]
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    ]
+                    message["content"] = "".join(text_parts) if text_parts else ""
+            # Demote structured tool_choice (always-thinking models reject it).
+            if isinstance(payload.get("tool_choice"), dict):
+                payload["tool_choice"] = "auto"
+
+            # --- optional thinking-mode toggle ---
             if _use_thinking:
-                # Inject the thinking-mode toggle and effort level.
                 payload["thinking"] = {"type": "enabled"}
                 payload["reasoning_effort"] = LLM_REASONING_EFFORT
-                # temperature / top_p / presence_penalty / frequency_penalty
-                # are not supported in thinking mode — drop them.
                 for _k in (
                     "temperature", "top_p", "presence_penalty", "frequency_penalty",
                 ):
                     payload.pop(_k, None)
-
-                # Preserve reasoning_content across tool-call round-trips.
-                input_messages = self._convert_input(input_).to_messages() or []
-                for idx, message in enumerate(payload["messages"]):
-                    rc = input_messages[idx].additional_kwargs.get("reasoning_content")
-                    if rc and message["role"] == "assistant":
-                        message["reasoning_content"] = rc
-                    if message["role"] == "tool" and isinstance(message["content"], list):
-                        message["content"] = json.dumps(message["content"])
-                    elif message["role"] == "assistant" and isinstance(
-                        message["content"], list
-                    ):
-                        text_parts = [
-                            b.get("text", "")
-                            for b in message["content"]
-                            if isinstance(b, dict) and b.get("type") == "text"
-                        ]
-                        message["content"] = "".join(text_parts) if text_parts else ""
-                # Demote structured tool_choice (rejected by thinking mode).
-                if isinstance(payload.get("tool_choice"), dict):
-                    payload["tool_choice"] = "auto"
 
             return payload
 

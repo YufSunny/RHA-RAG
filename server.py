@@ -392,6 +392,22 @@ async def api_delete(name: str):
     return JSONResponse({"error": "not found"}, status_code=404)
 
 
+@app.get("/api/sessions")
+async def api_sessions():
+    """List all past conversation sessions (newest first)."""
+    rows = database.list_sessions()
+    return rows
+
+
+@app.get("/api/sessions/{session_id}")
+async def api_session_history(session_id: str):
+    """Return the full message history for one session."""
+    rows = database.get_session_history(session_id)
+    if not rows:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return rows
+
+
 @app.post("/api/reindex")
 async def api_reindex():
     """Force re-index all documents immediately."""

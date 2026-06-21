@@ -4,375 +4,167 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RHA-RAG</title>
-<!-- Markdown + LaTeX rendering (CDN — no local install needed) -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <style>
   :root {
-    --bg: #0d1117;
-    --surface: #161b22;
-    --border: #30363d;
-    --text: #c9d1d9;
-    --muted: #8b949e;
-    --accent: #58a6ff;
-    --green: #3fb950;
-    --red: #f85149;
-    --orange: #d2991d;
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --orange: #d2991d;
     --purple: #a371f7;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    height: 100vh;
-    display: flex;
-    line-height: 1.6;
+    background: var(--bg); color: var(--text); height: 100vh; display: flex; line-height: 1.6;
   }
 
   /* ── Sidebar ── */
   aside {
-    width: 300px;
-    min-width: 300px;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    height: 100vh;
+    width: 280px; min-width: 280px; background: var(--surface);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    height: 100vh; overflow-y: auto;
   }
-  aside h2 {
-    padding: 20px 20px 12px;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--accent);
-    letter-spacing: 0.5px;
+  aside h2 { padding: 16px 16px 8px; font-size: 14px; font-weight: 600; color: var(--accent); }
+  #new-chat-btn {
+    margin: 0 12px 8px; padding: 8px; background: var(--accent); color: #fff;
+    border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
   }
+  #new-chat-btn:hover { opacity: 0.85; }
   .upload-zone {
-    margin: 0 16px 12px;
-    border: 2px dashed var(--border);
-    border-radius: 8px;
-    padding: 20px;
-    text-align: center;
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 13px;
-    transition: border-color 0.2s, background 0.2s;
+    margin: 0 12px 8px; border: 2px dashed var(--border); border-radius: 8px;
+    padding: 12px; text-align: center; cursor: pointer; color: var(--muted); font-size: 12px;
   }
-  .upload-zone:hover, .upload-zone.dragover {
-    border-color: var(--accent);
-    background: rgba(88,166,255,0.05);
-    color: var(--accent);
-  }
+  .upload-zone:hover { border-color: var(--accent); color: var(--accent); }
   .upload-zone input { display: none; }
-  #upload-progress {
-    margin: 0 16px 8px;
-    color: var(--accent);
-    font-size: 12px;
-    display: none;
+  .status-line { padding: 6px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
+  .status-line .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+  .dot.green { background: var(--green); } .dot.red { background: var(--red); } .dot.orange { background: var(--orange); }
+  .sessions-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  .session-item {
+    padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-bottom: 2px;
+    color: var(--muted); border: 1px solid transparent;
   }
-  .status-bar {
-    margin: 0 16px 12px;
-    padding: 10px 14px;
-    background: var(--bg);
-    border-radius: 8px;
-    font-size: 12px;
-    line-height: 1.6;
-  }
-  .status-bar .dot {
-    display: inline-block;
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-  }
-  .dot.green { background: var(--green); }
-  .dot.red { background: var(--red); }
-  .dot.orange { background: var(--orange); }
-  #reindex-btn {
-    margin: 0 16px 10px;
-    padding: 7px 14px;
-    background: var(--surface);
-    color: var(--accent);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-  }
-  #reindex-btn:hover { background: var(--bg); }
-  .file-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 16px 16px;
-  }
-  .file-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    font-size: 12px;
-  }
-  .file-item:hover { background: var(--bg); }
-  .file-item .name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .file-item .size { color: var(--muted); font-size: 11px; white-space: nowrap; }
-  .file-item .del {
-    background: none; border: none; color: var(--red); cursor: pointer;
-    font-size: 16px; padding: 2px 6px; border-radius: 4px; opacity: 0;
-  }
-  .file-item:hover .del { opacity: 1; }
-  .file-item .del:hover { background: rgba(248,81,73,0.15); }
+  .session-item:hover { background: var(--bg); }
+  .session-item:hover button { opacity: 1 !important; }
+  .session-item.active { background: var(--bg); border-color: var(--border); color: var(--text); }
+  .session-item .title { font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-item .meta { font-size: 11px; display: flex; justify-content: space-between; }
 
   /* ── Main chat ── */
-  main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    min-height: 0;
-    height: 100vh;
-  }
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; }
   .chat-header {
-    padding: 14px 24px;
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
-    color: var(--muted);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 13px;
+    color: var(--muted); flex-shrink: 0; display: flex; align-items: center; gap: 10px;
   }
-  .chat-header span { color: var(--text); font-weight: 600; }
   .chat-header .spacer { flex: 1; }
   #clear-btn {
-    padding: 5px 12px;
-    background: var(--surface);
-    color: var(--muted);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
+    padding: 4px 10px; background: var(--surface); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;
   }
   #clear-btn:hover { color: var(--red); border-color: var(--red); }
-  #fast-btn {
-    padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
-    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted);
-    background: var(--surface); transition: all 0.15s; white-space: nowrap;
-  }
-  #fast-btn.fast { color: var(--green); border-color: var(--green); }
+
   #chat {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 24px 32px;
+    flex: 1; min-height: 0; overflow-y: auto; padding: 20px 28px;
   }
-
-  /* Question bubble */
-  .question-bubble {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    border-radius: 0 8px 8px 0;
-    padding: 16px 20px;
-    font-size: 15px;
-    max-width: 100%;
-    word-wrap: break-word;
-  }
-  .question-bubble .label {
-    font-size: 11px;
-    color: var(--accent);
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 600;
-  }
-
-  /* Node card */
-  .node-card {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    animation: fadeIn 0.3s ease;
-    background: var(--surface);
-    flex-shrink: 0;
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .node-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    user-select: none;
-    border-bottom: 1px solid transparent;
-  }
-  .node-header.open { border-bottom-color: var(--border); }
-  .node-dot {
-    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-  }
-  .node-dot.clarify { background: var(--purple); }
-  .node-dot.generate_query { background: var(--accent); }
-  .node-dot.retrieve { background: var(--green); }
-  .node-dot.grade { background: var(--orange); }
-  .node-dot.reason { background: #ff7b72; }
-  .node-dot.verify { background: var(--accent); }
-  .node-dot.generate_answer { background: var(--green); }
-  .node-dot.error { background: var(--red); }
-  .node-dot.status { background: var(--orange); }
-  .node-arrow { margin-left: auto; color: var(--muted); font-size: 12px; transition: transform 0.2s; }
-  .node-header.open .node-arrow { transform: rotate(180deg); }
-  .node-body {
-    padding: 16px 20px;
-    font-size: 14px;
-    line-height: 1.7;
-    white-space: pre-wrap;
-    word-break: break-word;
-    overflow-wrap: break-word;
-    display: none;
-    color: var(--text);
-    max-height: 70vh;
-    overflow-y: auto;
-  }
-  .node-body.open { display: block; }
-
-  /* Empty state */
   .empty-state {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: var(--muted);
-    gap: 12px;
-    font-size: 15px;
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: var(--muted); gap: 12px; font-size: 15px; height: 100%;
   }
   .empty-state .big-icon { font-size: 48px; opacity: 0.4; }
 
-  /* Spinner */
-  .spinner {
-    display: inline-block;
-    width: 14px; height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-right: 8px;
+  /* Chat bubbles */
+  .msg-row { display: flex; margin-bottom: 16px; }
+  .msg-row.user { justify-content: flex-end; }
+  .msg-row.assistant { justify-content: flex-start; }
+  .msg-bubble {
+    max-width: 85%; padding: 12px 16px; border-radius: 10px; font-size: 14px; line-height: 1.7;
+    word-wrap: break-word; overflow-wrap: break-word; position: relative;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .msg-row.user .msg-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
+  .msg-row.assistant .msg-bubble {
+    background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 2px;
+  }
+  .msg-time { font-size: 11px; color: var(--muted); margin-top: 4px; padding: 0 4px; }
+  .msg-row.user .msg-time { text-align: right; }
+  .copy-btn {
+    position: absolute; top: 6px; right: 8px; background: none; border: none;
+    color: var(--muted); cursor: pointer; font-size: 12px; opacity: 0;
+  }
+  .msg-row.assistant .msg-bubble:hover .copy-btn { opacity: 1; }
 
-  /* Input area */
+  /* Collapsible pipeline detail */
+  .pipeline-detail { margin-top: 8px; }
+  .pipeline-detail summary { font-size: 11px; color: var(--muted); cursor: pointer; }
+  .pipeline-node { margin: 4px 0; padding: 6px 10px; background: var(--bg); border-radius: 4px; font-size: 12px; line-height: 1.5; }
+  .pipeline-node .pn-label { font-weight: 600; font-size: 10px; text-transform: uppercase; margin-bottom: 3px; }
+
+  /* Rendered content inside bubbles */
+  .assistant .msg-bubble p { margin: 0 0 0.8em; }
+  .assistant .msg-bubble p:last-child { margin-bottom: 0; }
+  .assistant .msg-bubble ul, .assistant .msg-bubble ol { margin: 0 0 0.8em; padding-left: 1.5em; }
+  .assistant .msg-bubble li { margin: 0.25em 0; }
+  .assistant .msg-bubble code {
+    background: rgba(88,166,255,0.1); padding: 1px 4px; border-radius: 3px; font-size: 0.9em;
+  }
+  .assistant .msg-bubble pre {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 12px; overflow-x: auto; margin: 0 0 0.8em; font-size: 0.85em;
+  }
+  .assistant .msg-bubble pre code { background: none; padding: 0; }
+  .assistant .msg-bubble blockquote {
+    border-left: 3px solid var(--accent); margin: 0 0 0.8em; padding: 2px 0 2px 12px; color: var(--muted);
+  }
+
+  /* KaTeX dark */
+  .katex { color: var(--text); font-size: 1.05em; }
+  .msg-row.user .katex { color: #fff; }
+  .katex .mord, .katex .mbin, .katex .mrel { color: inherit; }
+
+  /* Input */
   .chat-input {
-    padding: 14px 24px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 10px;
-    flex-shrink: 0;
-    background: var(--bg);
+    padding: 12px 20px; border-top: 1px solid var(--border); display: flex;
+    gap: 8px; flex-shrink: 0; background: var(--bg); align-items: center;
   }
   .chat-input input {
-    flex: 1;
-    padding: 10px 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.15s;
+    flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 14px; outline: none;
   }
   .chat-input input:focus { border-color: var(--accent); }
   .chat-input button {
-    padding: 10px 28px;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.15s;
+    padding: 10px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
   }
-  .chat-input button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .chat-input button:hover:not(:disabled) { opacity: 0.85; }
+  #ask-btn { background: var(--accent); color: #fff; }
+  #ask-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #stop-btn { background: var(--red); color: #fff; display: none; }
+  #fast-btn {
+    padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; font-weight: 600; color: var(--muted); background: var(--surface); cursor: pointer;
+  }
+  #fast-btn.fast { color: var(--green); border-color: var(--green); }
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
+  /* Spinner */
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-  /* KaTeX dark-theme overrides */
-  .katex { color: var(--text); font-size: 1.05em; }
-  .katex .mord, .katex .mopen, .katex .mclose, .katex .mbin, .katex .mrel,
-  .katex .mpunct, .katex .minner, .katex .mord.text { color: var(--text); }
-  .katex .mfrac { color: var(--text); }
-  .katex-display { overflow-x: auto; overflow-y: hidden; }
-
-  /* Rendered content inside node cards */
-  .node-body.rendered { font-size: 15px; line-height: 1.8; }
-  .node-body.rendered p { margin: 0 0 1em; }
-  .node-body.rendered p:last-child { margin-bottom: 0; }
-  .node-body.rendered ul, .node-body.rendered ol { margin: 0 0 1em; padding-left: 1.5em; }
-  .node-body.rendered li { margin: 0.25em 0; }
-  .node-body.rendered h1, .node-body.rendered h2, .node-body.rendered h3,
-  .node-body.rendered h4, .node-body.rendered h5, .node-body.rendered h6 {
-    margin: 1em 0 0.5em; font-weight: 600; color: var(--accent);
-  }
-  .node-body.rendered h1 { font-size: 1.4em; }
-  .node-body.rendered h2 { font-size: 1.25em; }
-  .node-body.rendered h3 { font-size: 1.1em; }
-  .node-body.rendered code {
-    background: rgba(88,166,255,0.1); padding: 1px 5px; border-radius: 4px;
-    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
-    font-size: 0.9em;
-  }
-  .node-body.rendered pre {
-    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    padding: 12px 16px; overflow-x: auto; margin: 0 0 1em;
-  }
-  .node-body.rendered pre code {
-    background: none; padding: 0; border-radius: 0; font-size: 0.85em;
-  }
-  .node-body.rendered blockquote {
-    border-left: 3px solid var(--accent); margin: 0 0 1em; padding: 4px 0 4px 16px;
-    color: var(--muted);
-  }
-  .node-body.rendered hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
-  .node-body.rendered a { color: var(--accent); }
-  .node-body.rendered table {
-    border-collapse: collapse; width: 100%; margin: 0 0 1em;
-  }
-  .node-body.rendered th, .node-body.rendered td {
-    border: 1px solid var(--border); padding: 6px 12px; text-align: left;
-  }
-  .node-body.rendered th { background: var(--surface); font-weight: 600; }
 </style>
 </head>
 <body>
 
 <aside>
   <h2>RHA-RAG</h2>
-
+  <button id="new-chat-btn" onclick="newChat()">+ New chat</button>
   <div class="upload-zone" id="upload-zone">
     + Drop files or click to upload
     <input type="file" id="file-input" multiple accept=".txt,.md,.html,.htm,.pdf,.jpg,.jpeg,.png,.docx">
   </div>
-
-  <div id="upload-progress"></div>
-
-  <div class="status-bar">
-    <div><span class="dot orange" id="status-dot"></span> <span id="status-text">Initializing...</span></div>
-    <div style="margin-left:14px;color:var(--muted)"><span id="status-docs">-</span> files</div>
-  </div>
-
-  <button id="reindex-btn" onclick="reindex()">Re-index All</button>
-
-  <div class="file-list" id="file-list"></div>
+  <div class="sessions-list" id="sessions-list"></div>
+  <div class="file-list" id="file-list" style="padding:4px 8px;font-size:11px;border-top:1px solid var(--border);max-height:30vh;overflow-y:auto"></div>
+  <div class="status-line"><span class="dot orange" id="status-dot"></span> <span id="status-files">-</span> files · <span id="status-text">-</span></div>
 </aside>
 
 <main>
@@ -392,7 +184,8 @@
   <div class="chat-input">
     <input type="text" id="question-input" placeholder="Ask a research question..." autofocus
            onkeydown="if(event.key==='Enter')ask()">
-    <button id="fast-btn" onclick="toggleFast()" title="Skip reasoning — retrieve then answer">Full</button>
+    <button id="fast-btn" onclick="toggleFast()">Full</button>
+    <button id="stop-btn" onclick="stopGen()">Stop</button>
     <button id="ask-btn" onclick="ask()">Ask</button>
   </div>
 </main>
@@ -400,6 +193,9 @@
 <script>
 let isStreaming = false;
 let fastMode = false;
+let currentAbort = null;
+let sessionId = localStorage.getItem('rha_session_id');
+if (!sessionId) { sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId); }
 
 function toggleFast() {
   fastMode = !fastMode;
@@ -408,67 +204,10 @@ function toggleFast() {
   btn.classList.toggle('fast', fastMode);
 }
 
-// Per-browser-session conversation id. Survives reload, isolated per tab.
-let sessionId = localStorage.getItem('rha_session_id');
-if (!sessionId) {
-  sessionId = (crypto.randomUUID ? crypto.randomUUID() : 's-' + Date.now() + '-' + Math.random().toString(16).slice(2));
-  localStorage.setItem('rha_session_id', sessionId);
-}
-
-async function init() { await refreshStatus(); await refreshFiles(); }
-init();
-
-// ── Upload ──────────────────────────────────────────────────
-const zone = document.getElementById('upload-zone');
-const input = document.getElementById('file-input');
-const progress = document.getElementById('upload-progress');
-zone.addEventListener('click', () => input.click());
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
-zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-zone.addEventListener('drop', e => {
-  e.preventDefault(); zone.classList.remove('dragover'); upload(e.dataTransfer.files);
-});
-input.addEventListener('change', () => { if (input.files.length) upload(input.files); });
-
-async function upload(fileList) {
-  const form = new FormData();
-  for (const f of fileList) form.append('files', f);
-  progress.style.display = 'block';
-  progress.textContent = 'Uploading ' + fileList.length + ' file(s)...';
-  const res = await fetch('/api/upload', { method: 'POST', body: form });
-  const data = await res.json();
-  progress.textContent = 'Done: ' + data.saved.join(', ');
-  setTimeout(() => { progress.style.display = 'none'; }, 4000);
-  await refreshStatus(); await refreshFiles();
-  input.value = '';
-}
-
-// ── Files ───────────────────────────────────────────────────
-async function refreshFiles() {
-  const res = await fetch('/api/files');
-  const list = document.getElementById('file-list');
-  list.innerHTML = (await res.json()).map(f =>
-    '<div class="file-item">' +
-      '<span class="name" title="' + esc(f.name) + '">' + esc(f.name) + '</span>' +
-      '<span class="size">' + fmtSize(f.size) + '</span>' +
-      '<button class="del" onclick="del(\'' + esc(f.name) + '\')" title="Delete">&times;</button>' +
-    '</div>'
-  ).join('');
-}
-
-async function del(name) {
-  await fetch('/api/files/' + encodeURIComponent(name), { method: 'DELETE' });
-  await refreshFiles(); await refreshStatus();
-}
-
-// ── Markdown + LaTeX rendering ────────────────────────────────
+// ── Markdown / LaTeX rendering ────────────────────────────────
 function renderContent(text) {
   if (!text) return '';
-  // Step 1: extract LaTeX and replace with placeholders so markdown
-  // parsing doesn't mangle math delimiters.
   const placeholders = [];
-
-  // Display math: $$...$$  and  \[...\]
   text = text.replace(/\$\$([\s\S]*?)\$\$/g, function(_, m) {
     placeholders.push(katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }));
     return '\x01D' + (placeholders.length - 1) + '\x01';
@@ -477,7 +216,6 @@ function renderContent(text) {
     placeholders.push(katex.renderToString(m.trim(), { displayMode: true, throwOnError: false }));
     return '\x01D' + (placeholders.length - 1) + '\x01';
   });
-  // Inline math: $...$  and  \(...\)
   text = text.replace(/\\\((.+?)\\\)/g, function(_, m) {
     placeholders.push(katex.renderToString(m.trim(), { throwOnError: false }));
     return '\x01I' + (placeholders.length - 1) + '\x01';
@@ -486,183 +224,249 @@ function renderContent(text) {
     placeholders.push(katex.renderToString(m.trim(), { throwOnError: false }));
     return '\x01I' + (placeholders.length - 1) + '\x01';
   });
-
-  // Step 2: render markdown
   let html = marked.parse(text);
-
-  // Step 3: restore KaTeX placeholders
   html = html.replace(/\x01D(\d+)\x01/g, function(_, idx) { return placeholders[idx]; });
   html = html.replace(/\x01I(\d+)\x01/g, function(_, idx) {
     return '<span class="katex-inline">' + placeholders[idx] + '</span>';
   });
-
   return html;
 }
 
-async function reindex() {
-  const btn = document.getElementById('reindex-btn');
-  btn.textContent = 'Indexing...'; btn.disabled = true;
-  const res = await fetch('/api/reindex', { method: 'POST' });
-  const data = await res.json();
-  btn.textContent = 'Re-index All'; btn.disabled = false;
-  await refreshStatus();
+// ── Upload ────────────────────────────────────────────────────
+const zone = document.getElementById('upload-zone');
+const input = document.getElementById('file-input');
+zone.addEventListener('click', () => input.click());
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); upload(e.dataTransfer.files); });
+input.addEventListener('change', () => { if (input.files.length) upload(input.files); });
+
+async function upload(fileList) {
+  const form = new FormData();
+  for (const f of fileList) form.append('files', f);
+  await fetch('/api/upload', { method: 'POST', body: form });
+  refreshStatus(); input.value = '';
 }
 
-// ── Clear chat ──────────────────────────────────────────────
-async function clearChat() {
-  if (isStreaming) return;
-  await fetch('/api/clear', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId }),
-  });
-  const chat = document.getElementById('chat');
-  chat.innerHTML =
-    '<div class="empty-state" id="empty-state">' +
-      '<div class="big-icon">&#9670;</div>' +
-      '<div>Conversation cleared. Ask a research question</div>' +
-    '</div>';
-}
-
-// ── Status ──────────────────────────────────────────────────
+// ── Status ────────────────────────────────────────────────────
 async function refreshStatus() {
   const res = await fetch('/api/status');
   const s = await res.json();
-  const dot = document.getElementById('status-dot'), text = document.getElementById('status-text');
+  const dot = document.getElementById('status-dot'), txt = document.getElementById('status-text');
   dot.className = 'dot ' + (s.ready ? 'green' : s.missing_keys.length ? 'red' : 'orange');
-
-  if (s.ready) {
-    text.textContent = 'Ready';
-  } else if (s.missing_keys.length) {
-    text.textContent = 'Missing: ' + s.missing_keys.join(', ');
-  } else if (s.files > 0) {
-    text.textContent = s.files + ' file(s) — ask a question to index';
-  } else {
-    text.textContent = s.errors.join('; ') || 'No documents';
-  }
-
-  document.getElementById('status-docs').textContent = s.files;
+  txt.textContent = s.ready ? 'Ready' : s.files ? s.files + ' files' : (s.errors.join('; ') || 'No files');
+  document.getElementById('status-files').textContent = s.files;
 }
 
-// ── Chat ────────────────────────────────────────────────────
+// ── Sessions list ─────────────────────────────────────────────
+async function refreshSessions() {
+  const res = await fetch('/api/sessions');
+  const list = document.getElementById('sessions-list');
+  const data = await res.json();
+  if (!data.length) { list.innerHTML = ''; return; }
+  list.innerHTML = data.map(s => {
+    const cls = s.session_id === sessionId ? 'session-item active' : 'session-item';
+    const preview = esc(s.last_preview || '').substring(0, 60);
+    const time = s.updated_at ? new Date(s.updated_at).toLocaleTimeString() : '';
+    return '<div class="' + cls + '" onclick="switchSession(\'' + esc(s.session_id) + '\')">' +
+      '<div style="display:flex;align-items:center;gap:4px">' +
+        '<div class="title" style="flex:1">' + preview + '</div>' +
+        '<button onclick="delSession(\'' + esc(s.session_id) + '\',event)" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;opacity:0">&times;</button>' +
+      '</div>' +
+      '<div class="meta"><span>' + (s.messages / 2 | 0) + ' turns</span><span>' + time + '</span></div>' +
+      '</div>';
+  }).join('');
+}
+
+async function switchSession(id) {
+  if (id === sessionId) return;
+  sessionId = id; localStorage.setItem('rha_session_id', id);
+  document.getElementById('chat').innerHTML = '';
+  const res = await fetch('/api/sessions/' + encodeURIComponent(id));
+  if (!res.ok) { refreshSessions(); return; }
+  const msgs = await res.json();
+  for (const m of msgs) {
+    addMessage(m.role, m.content, m.created_at);
+  }
+  refreshSessions();
+}
+
+function newChat() {
+  sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId);
+  document.getElementById('chat').innerHTML =
+    '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>New conversation</div></div>';
+  refreshSessions();
+}
+
+function addMessage(role, content, timestamp) {
+  const chat = document.getElementById('chat');
+  const empty = document.getElementById('empty-state'); if (empty) empty.remove();
+  const timeStr = timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + role;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.innerHTML = renderContent(content);
+
+  if (role === 'assistant') {
+    const copy = document.createElement('button');
+    copy.className = 'copy-btn'; copy.textContent = '📋'; copy.title = 'Copy';
+    copy.onclick = function() { navigator.clipboard.writeText(content); };
+    bubble.appendChild(copy);
+  }
+
+  row.appendChild(bubble);
+  chat.appendChild(row);
+
+  const timeDiv = document.createElement('div');
+  timeDiv.className = 'msg-time'; timeDiv.textContent = timeStr;
+  chat.appendChild(timeDiv);
+
+  chat.scrollTop = chat.scrollHeight;
+  return { row, bubble };
+}
+
+// ── Chat ──────────────────────────────────────────────────────
 async function ask() {
   if (isStreaming) return;
   const input = document.getElementById('question-input');
   const q = input.value.trim();
   if (!q) return;
 
-  isStreaming = true;
-  const btn = document.getElementById('ask-btn');
-  btn.disabled = true; btn.textContent = 'Thinking...';
+  isStreaming = true; input.value = '';
+  document.getElementById('ask-btn').disabled = true;
+  document.getElementById('stop-btn').style.display = '';
+  const { row: qRow, bubble: qBubble } = addMessage('human', q);
+  const { row: aRow, bubble: aBubble } = addMessage('assistant', '<span class="spinner"></span>Thinking...');
 
-  const empty = document.getElementById('empty-state');
-  if (empty) empty.remove();
-
-  const chat = document.getElementById('chat');
-
-  // Question bubble
-  const qDiv = document.createElement('div');
-  qDiv.className = 'question-bubble';
-  qDiv.innerHTML = '<div class="label">Question</div>' + esc(q);
-  chat.appendChild(qDiv);
-
-  // Node cards
-  const nodes = fastMode
-    ? ['generate_query', 'retrieve', 'generate_answer']
-    : ['clarify', 'generate_query', 'retrieve', 'grade', 'reason', 'verify', 'generate_answer'];
-  const cards = {};
-  for (const node of nodes) {
-    const card = document.createElement('div');
-    card.className = 'node-card';
-    card.style.display = 'none';
-    card.innerHTML =
-      '<div class="node-header" onclick="this.classList.toggle(\'open\');this.nextElementSibling.classList.toggle(\'open\')">' +
-        '<span class="node-dot ' + node + '"></span>' +
-        '<span>' + node.replace(/_/g, ' ') + '</span>' +
-        '<span class="node-arrow">&#9660;</span>' +
-      '</div>' +
-      '<div class="node-body"></div>';
-    chat.appendChild(card);
-    cards[node] = { card, body: card.querySelector('.node-body') };
-  }
-
-  // Status card for indexing messages
-  const statusCard = document.createElement('div');
-  statusCard.className = 'node-card';
-  statusCard.innerHTML =
-    '<div class="node-header"><span class="node-dot status"></span><span>Status</span></div>' +
-    '<div class="node-body open" style="display:block"></div>';
-  chat.appendChild(statusCard);
-  const statusBody = statusCard.querySelector('.node-body');
-
-  chat.scrollTop = chat.scrollHeight;
+  currentAbort = new AbortController();
 
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: q, session_id: sessionId, fast: fastMode }),
+      signal: currentAbort.signal,
     });
 
+    const pipelineNodes = [];
+    let answerContent = '';
+    let streamDone = false;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
+    while (!streamDone) {
       const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      if (done) buffer += decoder.decode();  // flush decoder
+      const lines = buffer.split('\n'); buffer = lines.pop() || '';
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const event = JSON.parse(line.slice(6));
-        const node = event.node;
-
-        if (node === 'done') break;
-        if (node === 'error') {
-          statusBody.textContent = 'ERROR: ' + event.content;
-          statusBody.style.color = 'var(--red)';
-          break;
-        }
-        if (node === 'status') {
-          statusBody.textContent = event.content;
-          continue;
-        }
-        if (cards[node]) {
-          const c = cards[node];
-          c.card.style.display = '';
-          c.body.innerHTML = renderContent(event.content);
-          c.body.classList.add('open');
-          c.body.classList.add('rendered');
-          c.card.querySelector('.node-header').classList.add('open');
-          statusBody.innerHTML = '';
-          chat.scrollTop = chat.scrollHeight;
-        }
+        try { var event = JSON.parse(line.slice(6)); } catch (_) { continue; }
+        if (event.node === 'done') { streamDone = true; break; }
+        if (event.node === 'error') { aBubble.innerHTML = '<span style="color:var(--red)">Error: ' + esc(event.content) + '</span>'; streamDone = true; break; }
+        if (event.node === 'generate_answer') answerContent = event.content;
+        else if (event.node === 'generate_query' && event.content) answerContent = event.content;
+        if (event.node === 'status') continue;
+        pipelineNodes.push({ node: event.node, content: event.content });
       }
+      if (done) break;
     }
+
+    // Render final answer
+    aBubble.innerHTML = renderContent(answerContent || '(no answer)');
+    const copy = document.createElement('button');
+    copy.className = 'copy-btn'; copy.textContent = '📋'; copy.title = 'Copy';
+    copy.onclick = function() { navigator.clipboard.writeText(answerContent); };
+    aBubble.appendChild(copy);
+
+    // Add collapsible pipeline detail
+    if (pipelineNodes.length) {
+      const detail = document.createElement('details');
+      detail.className = 'pipeline-detail';
+      let html = '<summary>Pipeline (' + pipelineNodes.length + ' steps)</summary>';
+      for (const pn of pipelineNodes) {
+        html += '<div class="pipeline-node"><div class="pn-label">' + esc(pn.node) + '</div>' + esc(pn.content.substring(0, 500)) + '</div>';
+      }
+      detail.innerHTML = html;
+      aBubble.appendChild(detail);
+    }
+
   } catch (e) {
-    statusBody.textContent = 'Error: ' + e.message;
-    statusBody.style.color = 'var(--red)';
+    if (e.name === 'AbortError') {
+      aBubble.innerHTML = '<span style="color:var(--muted);font-style:italic">Generation stopped.</span>';
+    } else {
+      aBubble.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>';
+    }
   } finally {
     isStreaming = false;
-    btn.disabled = false; btn.textContent = 'Ask';
-    input.value = '';
-    chat.scrollTop = chat.scrollHeight;
-    refreshStatus().catch(() => {});  // update sidebar after index was built
+    currentAbort = null;
+    document.getElementById('ask-btn').disabled = false;
+    document.getElementById('stop-btn').style.display = 'none';
+    document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+    refreshSessions(); refreshStatus();
   }
+}
+
+function stopGen() {
+  if (currentAbort) currentAbort.abort();
+}
+
+async function clearChat() {
+  if (isStreaming) return;
+  await fetch('/api/clear', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  document.getElementById('chat').innerHTML =
+    '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>Conversation cleared</div></div>';
+  refreshSessions();
 }
 
 function esc(s) {
   const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
+  div.textContent = s; return div.innerHTML;
 }
-function fmtSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1048576).toFixed(1) + ' MB';
+
+// ── File list ─────────────────────────────────────────────────
+async function refreshFiles() {
+  const res = await fetch('/api/files');
+  const list = document.getElementById('file-list');
+  const data = await res.json();
+  if (!data.length) { list.innerHTML = ''; return; }
+  list.innerHTML = data.map(f =>
+    '<div style="display:flex;align-items:center;gap:4px;padding:2px 0;color:var(--muted)">' +
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px" title="' + esc(f.name) + '">' + esc(f.name) + '</span>' +
+      '<button onclick="delFile(\'' + esc(f.name) + '\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;opacity:0.6">&times;</button>' +
+    '</div>'
+  ).join('');
 }
+async function delFile(name) {
+  await fetch('/api/files/' + encodeURIComponent(name), { method: 'DELETE' });
+  refreshFiles(); refreshStatus();
+}
+
+// ── Session delete ────────────────────────────────────────────
+async function delSession(id, e) {
+  e.stopPropagation();
+  if (isStreaming) return;
+  await fetch('/api/clear', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: id }),
+  });
+  if (id === sessionId) {
+    sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId);
+    document.getElementById('chat').innerHTML =
+      '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>New conversation</div></div>';
+  }
+  refreshSessions();
+}
+
+// ── Init ──────────────────────────────────────────────────────
+refreshStatus(); refreshFiles(); refreshSessions(); setInterval(refreshFiles, 5000);
 </script>
 </body>
 </html>
