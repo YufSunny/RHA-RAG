@@ -159,6 +159,12 @@
     font-size: 12px;
   }
   #clear-btn:hover { color: var(--red); border-color: var(--red); }
+  #fast-btn {
+    padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted);
+    background: var(--surface); transition: all 0.15s; white-space: nowrap;
+  }
+  #fast-btn.fast { color: var(--green); border-color: var(--green); }
   #chat {
     flex: 1;
     min-height: 0;
@@ -386,12 +392,21 @@
   <div class="chat-input">
     <input type="text" id="question-input" placeholder="Ask a research question..." autofocus
            onkeydown="if(event.key==='Enter')ask()">
+    <button id="fast-btn" onclick="toggleFast()" title="Skip reasoning — retrieve then answer">Full</button>
     <button id="ask-btn" onclick="ask()">Ask</button>
   </div>
 </main>
 
 <script>
 let isStreaming = false;
+let fastMode = false;
+
+function toggleFast() {
+  fastMode = !fastMode;
+  const btn = document.getElementById('fast-btn');
+  btn.textContent = fastMode ? 'Fast' : 'Full';
+  btn.classList.toggle('fast', fastMode);
+}
 
 // Per-browser-session conversation id. Survives reload, isolated per tab.
 let sessionId = localStorage.getItem('rha_session_id');
@@ -552,7 +567,9 @@ async function ask() {
   chat.appendChild(qDiv);
 
   // Node cards
-  const nodes = ['clarify', 'generate_query', 'retrieve', 'grade', 'reason', 'verify', 'generate_answer'];
+  const nodes = fastMode
+    ? ['generate_query', 'retrieve', 'generate_answer']
+    : ['clarify', 'generate_query', 'retrieve', 'grade', 'reason', 'verify', 'generate_answer'];
   const cards = {};
   for (const node of nodes) {
     const card = document.createElement('div');
@@ -584,7 +601,7 @@ async function ask() {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q, session_id: sessionId }),
+      body: JSON.stringify({ question: q, session_id: sessionId, fast: fastMode }),
     });
 
     const reader = res.body.getReader();

@@ -469,6 +469,7 @@ async def api_chat(request: Request):
                 {
                     "question": question,
                     "history": history_text,
+                    "fast_mode": body.get("fast", False),
                     "messages": history_msgs + [HumanMessage(content=question)],
                 }
             ):

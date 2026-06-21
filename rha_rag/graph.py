@@ -14,10 +14,12 @@ class RhaState(MessagesState):
     the current turn's question (used by nodes that previously read
     `messages[0]`, which no longer holds once history is prepended). `history`
     is a condensed prior-Q&A string injected into the clarify/generate prompts.
+    `fast_mode` skips clarify / grade / reason / verify — retrieve then answer.
     """
 
     question: str
     history: str
+    fast_mode: bool = False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -162,11 +164,13 @@ def make_retriever_tool(retriever):
 def build_graph(retriever, response_model, grader_model):
     """Build and return the compiled LangGraph StateGraph.
 
-    Graph flow:
+    Full path (fast_mode=False):
         START -> clarify -> generate_query -> [conditional] -> retrieve
-                      |                                      |
-                      |                               grade -> reason -> verify -> generate_answer -> END
-                      +-> END (no tool call)
+                           -> grade -> reason -> verify -> generate_answer -> END
+
+    Fast path (fast_mode=True):
+        START -> generate_query -> [conditional] -> retrieve
+                                 -> generate_answer -> END
     """
     from langgraph.graph import END, START, StateGraph
     from langgraph.prebuilt import ToolNode
@@ -175,7 +179,7 @@ def build_graph(retriever, response_model, grader_model):
 
     workflow = StateGraph(RhaState)
 
-    # Create nodes with model references
+    # Nodes
     workflow.add_node("clarify", make_clarify_question(response_model))
     workflow.add_node("generate_query", make_generate_query_or_respond(response_model, retriever_tool))
     workflow.add_node("retrieve", ToolNode([retriever_tool]))
@@ -184,25 +188,38 @@ def build_graph(retriever, response_model, grader_model):
     workflow.add_node("verify", make_verify(response_model))
     workflow.add_node("generate_answer", make_generate_answer(response_model))
 
-    # Entry
-    workflow.add_edge(START, "clarify")
+    # Entry: skip clarify in fast mode.
+    def _route_entry(state: RhaState) -> str:
+        return "generate_query" if state.get("fast_mode") else "clarify"
+
+    workflow.add_conditional_edges(
+        START,
+        _route_entry,
+        {"clarify": "clarify", "generate_query": "generate_query"},
+    )
     workflow.add_edge("clarify", "generate_query")
 
-    # Conditional: tool call or direct answer
-    def route_on_tool_calls(state: RhaState):
-        last = state["messages"][-1]
-        if getattr(last, "tool_calls", None):
-            return "tools"
-        return END
+    # Tool-call gate.
+    def _route_tools(state: RhaState) -> str:
+        return "tools" if getattr(state["messages"][-1], "tool_calls", None) else END
 
     workflow.add_conditional_edges(
         "generate_query",
-        route_on_tool_calls,
+        _route_tools,
         {"tools": "retrieve", END: END},
     )
 
-    # Linear pipeline after retrieval
-    workflow.add_edge("retrieve", "grade")
+    # After retrieval: skip the reasoning nodes in fast mode.
+    def _route_after_retrieve(state: RhaState) -> str:
+        return "generate_answer" if state.get("fast_mode") else "grade"
+
+    workflow.add_conditional_edges(
+        "retrieve",
+        _route_after_retrieve,
+        {"generate_answer": "generate_answer", "grade": "grade"},
+    )
+
+    # Full-path chain (only reached when fast_mode is False).
     workflow.add_edge("grade", "reason")
     workflow.add_edge("reason", "verify")
     workflow.add_edge("verify", "generate_answer")

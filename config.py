@@ -51,6 +51,26 @@ for _k in ("ZAI_API_KEY", "QWEN_API_KEY", "OPENAI_API_KEY"):
     _prompt(_k, secret=True)
 
 
+# ── Model configuration ──────────────────────────────────────
+LLM_MODEL     = os.environ.get("LLM_MODEL",     "deepseek-v4-pro")
+LLM_BASE_URL  = os.environ.get("LLM_BASE_URL",  "https://api.deepseek.com")
+EMBED_MODEL   = os.environ.get("EMBED_MODEL",   "text-embedding-v4")
+EMBED_BASE_URL = os.environ.get(
+    "EMBED_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+)
+OCR_MODEL = os.environ.get("OCR_MODEL", "glm-ocr")
+
+# DeepSeek thinking mode — sends {"thinking": {"type": "enabled"}} in the API
+# call.  When enabled the model emits a chain-of-thought before the final answer
+# (returned as `reasoning_content`).  Set to "false" / "0" to disable.
+# https://api-docs.deepseek.com/guides/thinking_mode
+LLM_THINKING = os.environ.get("LLM_THINKING", "true").lower() in (
+    "1", "true", "yes"
+)
+
+# Effort level when thinking mode is on: low | medium | high | xhigh | max.
+LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "high")
+
 # ── Conversation memory ───────────────────────────────────────
 MAX_HISTORY_TURNS = int(os.environ.get("MAX_HISTORY_TURNS", "6"))
 

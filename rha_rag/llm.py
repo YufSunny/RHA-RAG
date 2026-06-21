@@ -3,6 +3,10 @@
 import os
 import json
 from typing import Any
+from config import (
+    LLM_MODEL, LLM_BASE_URL, EMBED_MODEL, EMBED_BASE_URL, OCR_MODEL,
+    LLM_THINKING, LLM_REASONING_EFFORT,
+)
 
 
 class ModelConfig:
@@ -14,19 +18,9 @@ class ModelConfig:
 
 
 models = {
-    "ocr": ModelConfig("ocr", "ZAI_API_KEY", "glm-ocr", None),
-    "embed": ModelConfig(
-        "embed",
-        "QWEN_API_KEY",
-        "text-embedding-v4",
-        "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    ),
-    "llm": ModelConfig(
-        "llm",
-        "OPENAI_API_KEY",
-        "deepseek-v4-pro",
-        "https://api.deepseek.com",
-    ),
+    "ocr":   ModelConfig("ocr",   "ZAI_API_KEY",  OCR_MODEL,   None),
+    "embed": ModelConfig("embed", "QWEN_API_KEY", EMBED_MODEL, EMBED_BASE_URL),
+    "llm":   ModelConfig("llm",   "OPENAI_API_KEY", LLM_MODEL,  LLM_BASE_URL),
 }
 
 
@@ -41,14 +35,11 @@ def create_llms():
     if not os.environ.get(models["llm"].api_key):
         return None, None
 
-    class ChatDeepSeekFixed(ChatDeepSeek):
-        """ChatDeepSeek with fixes for V4 thinking mode.
+    _is_deepseek = "deepseek" in (models["llm"].base_url or "").lower()
+    _use_thinking = _is_deepseek and LLM_THINKING
 
-        Three patches:
-        1. Preserve reasoning_content across tool-call round-trips
-        2. Serialize list-type tool/assistant message content
-        3. Demote structured-output tool_choice dict to "auto"
-        """
+    class _Patched(ChatDeepSeek):
+        """Patches the request payload for DeepSeek thinking mode when enabled."""
 
         def _get_request_payload(
             self,
@@ -57,43 +48,54 @@ def create_llms():
             stop: list[str] | None = None,
             **kwargs: Any,
         ) -> dict:
-            payload = super(ChatDeepSeek, self)._get_request_payload(
-                input_, stop=stop, **kwargs
-            )
-            input_messages = self._convert_input(input_).to_messages() or []
-            for idx, message in enumerate(payload["messages"]):
-                rc = input_messages[idx].additional_kwargs.get("reasoning_content")
-                if rc and message["role"] == "assistant":
-                    message["reasoning_content"] = rc
-                if message["role"] == "tool" and isinstance(message["content"], list):
-                    message["content"] = json.dumps(message["content"])
-                elif message["role"] == "assistant" and isinstance(
-                    message["content"], list
+            payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+
+            if _use_thinking:
+                # Inject the thinking-mode toggle and effort level.
+                payload["thinking"] = {"type": "enabled"}
+                payload["reasoning_effort"] = LLM_REASONING_EFFORT
+                # temperature / top_p / presence_penalty / frequency_penalty
+                # are not supported in thinking mode — drop them.
+                for _k in (
+                    "temperature", "top_p", "presence_penalty", "frequency_penalty",
                 ):
-                    text_parts = [
-                        b.get("text", "")
-                        for b in message["content"]
-                        if isinstance(b, dict) and b.get("type") == "text"
-                    ]
-                    message["content"] = "".join(text_parts) if text_parts else ""
-            if isinstance(payload.get("tool_choice"), dict):
-                payload["tool_choice"] = "auto"
+                    payload.pop(_k, None)
+
+                # Preserve reasoning_content across tool-call round-trips.
+                input_messages = self._convert_input(input_).to_messages() or []
+                for idx, message in enumerate(payload["messages"]):
+                    rc = input_messages[idx].additional_kwargs.get("reasoning_content")
+                    if rc and message["role"] == "assistant":
+                        message["reasoning_content"] = rc
+                    if message["role"] == "tool" and isinstance(message["content"], list):
+                        message["content"] = json.dumps(message["content"])
+                    elif message["role"] == "assistant" and isinstance(
+                        message["content"], list
+                    ):
+                        text_parts = [
+                            b.get("text", "")
+                            for b in message["content"]
+                            if isinstance(b, dict) and b.get("type") == "text"
+                        ]
+                        message["content"] = "".join(text_parts) if text_parts else ""
+                # Demote structured tool_choice (rejected by thinking mode).
+                if isinstance(payload.get("tool_choice"), dict):
+                    payload["tool_choice"] = "auto"
+
             return payload
 
-    llm_kwargs = dict(
+    llm_kwargs: dict = dict(
         model=models["llm"].model_name,
-        temperature=0,
         api_key=os.environ[models["llm"].api_key],
         api_base=models["llm"].base_url,
-        # DeepSeek occasionally drops connections ("Server disconnected
-        # without sending a response"). The OpenAI client retries
-        # transient errors up to max_retries; bump from the default 2 so a
-        # double-disconnect doesn't surface as a hard graph error.
         max_retries=5,
         timeout=300,
     )
+    if not _use_thinking:
+        llm_kwargs["temperature"] = 0
 
-    return ChatDeepSeekFixed(**llm_kwargs), ChatDeepSeekFixed(**llm_kwargs)
+    llm_cls = _Patched if _is_deepseek else ChatDeepSeek
+    return llm_cls(**llm_kwargs), llm_cls(**llm_kwargs)
 
 
 # For backward compatibility with old code
