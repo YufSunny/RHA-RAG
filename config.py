@@ -71,6 +71,9 @@ LLM_THINKING = os.environ.get("LLM_THINKING", "true").lower() in (
 # Effort level when thinking mode is on: low | medium | high | xhigh | max.
 LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "high")
 
+# ── Server ───────────────────────────────────────────────────
+PORT = int(os.environ.get("PORT", "8000"))
+
 # ── Conversation memory ───────────────────────────────────────
 MAX_HISTORY_TURNS = int(os.environ.get("MAX_HISTORY_TURNS", "6"))
 

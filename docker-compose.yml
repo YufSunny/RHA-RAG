@@ -16,7 +16,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:${PORT:-8000}"
     depends_on:
       db:
         condition: service_healthy
@@ -41,6 +41,7 @@ services:
       OCR_MODEL: ${OCR_MODEL:-glm-ocr}
 
       # ── Optional ─────────────────────────────────────────────
+      PORT: ${PORT:-8000}
       LLM_THINKING: ${LLM_THINKING:-true}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-high}
       MAX_HISTORY_TURNS: 6

@@ -4,11 +4,13 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-Upload your documents, ask a research question, and watch an AI agent **retrieve, grade, reason in formal logical steps, verify the deduction, and produce a fully cited answer** — streamed live, node by node.
+Upload your documents, ask a research question, and watch an AI agent **retrieve, grade, reason in formal logical steps, verify the deduction, and produce a fully cited answer** — streamed to the browser in real time, node by node.
 
-Most RAG systems paste retrieved text into the prompt and let the model free-associate an answer. RHA-RAG doesn't. It forces the model to build an explicit **proof chain** — each step either cited from a source, marked as common knowledge, or deduced from prior steps — and then a separate **verifier** node checks that chain before any final answer is written. Every claim in the answer must cite a label from the source *and* the file it came from — whatever label the source uses (a Definition or Theorem number, a section number, a heading, …).
+Most RAG systems paste retrieved text into the prompt and let the model free-associate an answer. RHA-RAG doesn't. It forces the model to build an explicit **proof chain** — each step either cited from a source, marked as common knowledge, or deduced from prior steps — and then a separate **verifier** node checks that chain before any final answer is written. Every claim in the answer must cite a label from the source *and* the file it came from.
 
-Built with [LangGraph](https://langchain-ai.github.io/langgraph/), [Milvus Lite](https://milvus.io/docs), and [PostgreSQL](https://www.postgresql.org/).
+The web UI is a full **chat app**: conversation history persisted to PostgreSQL, a sidebar for switching between past sessions, chat-bubble display with markdown + LaTeX rendering, a stop button, and a **fast mode** (skip reasoning, just retrieve and answer).
+
+Built with [LangGraph](https://langchain-ai.github.io/langgraph/), [Milvus Lite](https://milvus.io/docs), [PostgreSQL](https://www.postgresql.org/), and [Docker](https://www.docker.com/).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
@@ -46,33 +48,19 @@ The reasoning chain uses a formal-proof notation:
 ### Prerequisites
 
 - **Python 3.12+** — any environment works (system, venv, conda).
-- **PostgreSQL** — for persistent conversation history. Install from
-  [postgresql.org](https://www.postgresql.org/download/) or your package
-  manager. At startup the server prompts for connection details; press Enter on
-  each to skip and use in-memory history. You can also pre-fill them in
-  [config.py](config.py) by uncommenting the `PG_*` lines.
+- **Docker** (recommended) or **Python 3.12+** for local install.
 
-### Configuration
+### Docker (recommended)
 
-All settings live in **[config.py](config.py)** — open it and fill in your values.
-The easiest way: uncomment the lines and paste your values directly. At startup
-the server prompts interactively for anything still missing — API keys one by
-one, then PostgreSQL host / port / user / password / database (enter blank on
-each to skip Postgres and use in-memory history). You can also set everything in
-your shell or a `.env` file:
+```bash
+cp .env.docker.example .env       # edit .env → paste API keys
+docker compose --env-file .env up --build
+# → http://localhost:8000
+```
 
-| Env variable | Service | Purpose |
-|-------------|---------|---------|
-| `ZAI_API_KEY` | [Z.ai](https://www.z.ai/) | GLM-OCR for PDF/image processing |
-| `QWEN_API_KEY` | [DashScope](https://dashscope.aliyun.com/) | Qwen `text-embedding-v4` embeddings |
-| `OPENAI_API_KEY` | [DeepSeek](https://api.deepseek.com) | DeepSeek V4 Pro LLM |
+PostgreSQL is included as a companion container.  Everything is pre-configured.
 
-`MAX_HISTORY_TURNS` caps how many prior turns are fed back each turn
-(default 6; 0 disables memory).
-
-Without keys the server still starts — upload files, set keys, then click **Re-index**.
-
-### Install & run
+### Local install
 
 **Linux / macOS**
 
@@ -87,6 +75,24 @@ python server.py
 pip install -r requirements.txt
 python server.py
 ```
+
+### Configuration
+
+All settings live in **[config.py](config.py)** — uncomment and fill in values,
+or let the server prompt you interactively at startup. In Docker, set env vars
+instead (see `.env.docker.example`).
+
+| Env variable | Service | Purpose |
+|-------------|---------|---------|
+| `ZAI_API_KEY` | [Z.ai](https://www.z.ai/) | GLM-OCR for PDF/image processing |
+| `QWEN_API_KEY` | [DashScope](https://dashscope.aliyun.com/) | Qwen `text-embedding-v4` embeddings |
+| `OPENAI_API_KEY` | [DeepSeek](https://api.deepseek.com) | DeepSeek V4 Pro LLM |
+
+`DATABASE_URL` sets the PostgreSQL connection (or `""` for in-memory).
+`MAX_HISTORY_TURNS` caps prior-turn context (default 6; 0 disables).
+`LLM_THINKING` enables DeepSeek thinking mode (default true).
+
+Without keys the server still starts — upload files, set keys, then click **Re-index**.
 
 Drop documents into `data/local/` (or upload via the web UI), type a research question, and watch the pipeline execute in real time.
 
@@ -136,6 +142,10 @@ Each node streams live to the web UI via Server-Sent Events.
 6. **verify** — audit the chain: is each statement valid? does it lead to an answer? Emit the verified answer, or flag the flaw.
 7. **generate_answer** — write the final answer, citing every claim with a label from the source (Definition, Theorem, section number, heading, …) and the source filename.
 
+A **Fast mode** toggle in the UI skips `clarify` / `grade` / `reason` / `verify`
+and runs `generate_query → retrieve → generate_answer` — faster, for when you
+just want a cited answer without the proof chain.
+
 > For the full construction story — file by file, with the design decisions and gotchas — see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
@@ -148,7 +158,8 @@ space compact?"), retrieval is conversation-aware, and answers can build on
 earlier turns.
 
 - **Per-browser session.** A session id is stored in `localStorage` (isolated
-  per tab, survives reload). History is persisted to PostgreSQL (see
+  per tab, survives reload). The sidebar lists all past conversations — click
+  to switch between them. History is persisted to PostgreSQL (see
   `DATABASE_URL` in [config.py](config.py)). If Postgres is unreachable the
   server falls back to an in-memory store (cleared on restart).
 - **What sees history:** `clarify` (resolves follow-up references), the
@@ -173,7 +184,9 @@ earlier turns.
 | Vector store | Milvus Lite (local file `milvus.db`, COSINE / AUTOINDEX) |
 | OCR | GLM-OCR via Z.ai (`ZaiClient`, data-URI format) |
 | PDF rendering | PyMuPDF (pages → PNG → OCR) |
-| Web server | FastAPI + SSE streaming |
+| Web server | FastAPI + real-time SSE streaming (node-by-node) |
+| Frontend | Vanilla JS chat app (bubbles, markdown/LaTeX, sidebar sessions, stop btn) |
+| Deployment | Docker Compose (app + PostgreSQL) |
 
 ---
 
@@ -199,8 +212,11 @@ OCR results are cached to `<file>.ocr.md` (mtime-checked), so re-indexing is fas
 .
 ├── server.py              FastAPI web server + REST API + SSE streaming
 ├── run.py                 CLI pipeline (output → run.log)
-├── config.py              Admin-tunable settings (MAX_HISTORY_TURNS, DATABASE_URL)
-├── database.py            PostgreSQL persistence for conversation history
+├── config.py              Admin-tunable settings
+├── database.py            PostgreSQL conversation persistence
+├── Dockerfile             Docker image
+├── docker-compose.yml     Docker Compose (app + PostgreSQL)
+├── .env.docker.example    Docker env template
 ├── rha_rag/                Core package
 │   ├── llm.py             ChatDeepSeekFixed + model config
 │   ├── pipeline.py        Loaders, OCR (+ .ocr.md cache), embeddings, Milvus store

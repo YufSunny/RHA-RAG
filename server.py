@@ -4,7 +4,7 @@ server.py — RHA-RAG Web Interface
 FastAPI server providing:
   - Document upload & management
   - Streaming chat with the reasoning pipeline
-  - Web UI at http://localhost:8000
+  - Web UI at http://localhost:8000 (configurable via PORT env var)
 
 Usage:
   python server.py
@@ -117,7 +117,7 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app):
     """Start immediately, no blocking work."""
-    log.info("Server ready: http://localhost:8000  (Ctrl+C to stop)")
+    log.info(f"Server ready: http://localhost:{PORT}  (Ctrl+C to stop)")
     yield
     # Clean shutdown
     log.info("Server shutting down...")
@@ -147,7 +147,7 @@ async def log_requests(request: Request, call_next):
 from rha_rag.llm import models, create_llms
 from rha_rag.pipeline import load_all_documents, create_vectorstore
 from rha_rag.graph import build_graph
-from config import MAX_HISTORY_TURNS
+from config import MAX_HISTORY_TURNS, PORT
 from langchain_core.messages import HumanMessage, AIMessage
 import database
 
@@ -554,6 +554,6 @@ if __name__ == "__main__":
     _signal.signal(_signal.SIGTERM, _force_quit)
 
     try:
-        uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
+        uvicorn.run(app, host="0.0.0.0", port=PORT, log_config=None)
     except KeyboardInterrupt:
         _force_quit(None, None)

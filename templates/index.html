@@ -157,7 +157,10 @@
 
 <aside>
   <h2>RHA-RAG</h2>
-  <button id="new-chat-btn" onclick="newChat()">+ New chat</button>
+  <div style="display:flex;gap:6px;padding:0 12px;margin-bottom:8px">
+    <button id="new-chat-btn" onclick="newChat()" style="flex:1">+ New chat</button>
+    <button id="lang-btn" onclick="toggleLang()" style="padding:8px 10px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">中</button>
+  </div>
   <div class="upload-zone" id="upload-zone">
     + Drop files or click to upload
     <input type="file" id="file-input" multiple accept=".txt,.md,.html,.htm,.pdf,.jpg,.jpeg,.png,.docx">
@@ -177,7 +180,7 @@
   <div id="chat">
     <div class="empty-state" id="empty-state">
       <div class="big-icon">&#9670;</div>
-      <div>Upload documents, then ask a research question</div>
+      <div id="empty-init-text">Upload documents, then ask a research question</div>
     </div>
   </div>
 
@@ -197,10 +200,82 @@ let currentAbort = null;
 let sessionId = localStorage.getItem('rha_session_id');
 if (!sessionId) { sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId); }
 
+// ── i18n ──────────────────────────────────────────────────────
+const T = {
+  en: {
+    title: 'RHA-RAG',
+    newChat: '+ New chat',
+    upload: '+ Drop files or click to upload',
+    placeholder: 'Ask a research question...',
+    ask: 'Ask', stop: 'Stop', full: 'Full', fast: 'Fast',
+    clear: 'Clear chat',
+    pipeline: 'Pipeline:',
+    emptyNew: 'New conversation',
+    emptyInit: 'Upload documents, then ask a research question',
+    emptyCleared: 'Conversation cleared',
+    ready: 'Ready', noFiles: 'No files',
+    filesLabel: 'files', filesAsk: 'file(s) — ask a question to index',
+    thinking: 'Thinking...',
+    pipelineSteps: n => 'Pipeline (' + n + ' steps)',
+    copyTitle: 'Copy',
+    fileDeleteTitle: 'Delete',
+    generationStopped: 'Generation stopped.',
+  },
+  zh: {
+    title: 'RHA-RAG',
+    newChat: '+ 新对话',
+    upload: '+ 拖放文件或点击上传',
+    placeholder: '输入研究问题…',
+    ask: '提问', stop: '停止', full: '完整', fast: '快速',
+    clear: '清空对话',
+    pipeline: '流水线：',
+    emptyNew: '新对话',
+    emptyInit: '上传文档，然后提出研究问题',
+    emptyCleared: '对话已清空',
+    ready: '就绪', noFiles: '无文件',
+    filesLabel: '个文件', filesAsk: '个文件 — 提问以建立索引',
+    thinking: '思考中…',
+    pipelineSteps: n => '流水线（' + n + ' 步）',
+    copyTitle: '复制',
+    fileDeleteTitle: '删除',
+    generationStopped: '生成已停止。',
+  }
+};
+let lang = localStorage.getItem('rha_lang') || 'en';
+function t(key, ...args) {
+  const fn = (T[lang] || T.en)[key] || (T.en[key] || key);
+  return typeof fn === 'function' ? fn(...args) : fn;
+}
+function toggleLang() {
+  lang = lang === 'en' ? 'zh' : 'en';
+  localStorage.setItem('rha_lang', lang);
+  document.getElementById('lang-btn').textContent = lang === 'en' ? '中' : 'EN';
+  applyLang();
+}
+function applyLang() {
+  document.getElementById('lang-btn').textContent = lang === 'en' ? '中' : 'EN';
+  document.getElementById('new-chat-btn').textContent = t('newChat');
+  document.getElementById('upload-zone').childNodes[0].textContent = t('upload');
+  document.getElementById('question-input').placeholder = t('placeholder');
+  document.getElementById('ask-btn').textContent = t('ask');
+  document.getElementById('stop-btn').textContent = t('stop');
+  document.getElementById('fast-btn').textContent = fastMode ? t('fast') : t('full');
+  document.getElementById('clear-btn').textContent = t('clear');
+  // sidebar title
+  document.querySelector('aside h2').textContent = t('title');
+  // pipeline header
+  const hdr = document.querySelector('.chat-header');
+  if (hdr) hdr.childNodes[0].textContent = t('pipeline') + ' ';
+  const eit = document.getElementById('empty-init-text');
+  if (eit) eit.textContent = t('emptyInit');
+  refreshStatus();
+}
+document.addEventListener('DOMContentLoaded', applyLang);
+
 function toggleFast() {
   fastMode = !fastMode;
   const btn = document.getElementById('fast-btn');
-  btn.textContent = fastMode ? 'Fast' : 'Full';
+  btn.textContent = fastMode ? t('fast') : t('full');
   btn.classList.toggle('fast', fastMode);
 }
 
@@ -254,7 +329,7 @@ async function refreshStatus() {
   const s = await res.json();
   const dot = document.getElementById('status-dot'), txt = document.getElementById('status-text');
   dot.className = 'dot ' + (s.ready ? 'green' : s.missing_keys.length ? 'red' : 'orange');
-  txt.textContent = s.ready ? 'Ready' : s.files ? s.files + ' files' : (s.errors.join('; ') || 'No files');
+  txt.textContent = s.ready ? t('ready') : s.files ? s.files + ' ' + t('filesLabel') : (s.errors.join('; ') || t('noFiles'));
   document.getElementById('status-files').textContent = s.files;
 }
 
@@ -295,7 +370,7 @@ function newChat() {
   if (isStreaming) return;
   sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId);
   document.getElementById('chat').innerHTML =
-    '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>New conversation</div></div>';
+    '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>' + t('emptyNew') + '</div></div>';
   refreshSessions();
 }
 
@@ -340,7 +415,7 @@ async function ask() {
   document.getElementById('ask-btn').disabled = true;
   document.getElementById('stop-btn').style.display = '';
   const { row: qRow, bubble: qBubble } = addMessage('human', q);
-  const { row: aRow, bubble: aBubble } = addMessage('assistant', '<span class="spinner"></span>Thinking...', null, true);
+  const { row: aRow, bubble: aBubble } = addMessage('assistant', '<span class="spinner"></span>' + t('thinking'), null, true);
 
   currentAbort = new AbortController();
 
@@ -400,7 +475,7 @@ async function ask() {
     // Collapse the pipeline detail and show the final answer.
     if (detailEl) {
       detailEl.open = false;
-      detailSummary.textContent = 'Pipeline (' + pipelineNodes.length + ' steps)';
+      detailSummary.textContent = t('pipelineSteps', pipelineNodes.length);
     }
     aBubble.innerHTML = renderContent(answerContent || '(no answer)');
     const copy = document.createElement('button');
@@ -411,7 +486,7 @@ async function ask() {
 
   } catch (e) {
     if (e.name === 'AbortError') {
-      aBubble.innerHTML = '<span style="color:var(--muted);font-style:italic">Generation stopped.</span>';
+      aBubble.innerHTML = '<span style="color:var(--muted);font-style:italic">' + t('generationStopped') + '</span>';
     } else {
       aBubble.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>';
     }
@@ -436,7 +511,7 @@ async function clearChat() {
     body: JSON.stringify({ session_id: sessionId }),
   });
   document.getElementById('chat').innerHTML =
-    '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>Conversation cleared</div></div>';
+    '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>' + t('emptyCleared') + '</div></div>';
   refreshSessions();
 }
 
@@ -474,7 +549,7 @@ async function delSession(id, e) {
   if (id === sessionId) {
     sessionId = crypto.randomUUID(); localStorage.setItem('rha_session_id', sessionId);
     document.getElementById('chat').innerHTML =
-      '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>New conversation</div></div>';
+      '<div class="empty-state" id="empty-state"><div class="big-icon">&#9670;</div><div>' + t('emptyNew') + '</div></div>';
   }
   refreshSessions();
 }

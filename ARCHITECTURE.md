@@ -98,9 +98,12 @@ results). This is the whole architecture — the rest is plumbing.
 ```
 .
 ├── server.py              FastAPI web server + REST API + SSE streaming
-├── run.py                 CLI that drives the same pipeline (output → run.log)
-├── config.py              Admin-tunable settings (MAX_HISTORY_TURNS, DATABASE_URL)
-├── database.py            PostgreSQL persistence for conversation history
+├── run.py                 CLI pipeline (output → run.log)
+├── config.py              Admin-tunable settings
+├── database.py            PostgreSQL conversation persistence
+├── Dockerfile             Docker image
+├── docker-compose.yml     Docker Compose (app + PostgreSQL)
+├── .env.docker.example    Docker env template
 ├── rha_rag/               ← the core package
 │   ├── __init__.py        Public exports
 │   ├── llm.py             ModelConfig table + ChatDeepSeekFixed (V4 patches)
@@ -446,9 +449,10 @@ Every step wraps its work in try/except, appends to `_init_errors`, and returns
   `config.MAX_HISTORY_TURNS` pairs) and a condensed `_history_text`.
 - `ensure_index()` in a thread executor (the pipeline is sync/blocking; the
   executor keeps the event loop free). If not ready → 503 with `_init_errors`.
-- Returns a `StreamingResponse` (SSE). A `run_graph()` helper runs
-  `_graph.stream({"question", "history", "messages": history + [question]})` in
-  the executor, collecting `(node, content)` pairs. After it completes, the
+- Returns a `StreamingResponse` (SSE). Uses `_graph.astream()` (async
+  generator) directly — each node is yielded as an SSE event the moment it
+  completes, so the UI sees nodes appear in real time, not in one batch.  After
+  the stream ends, the
   turn's answer is extracted (`_extract_answer` — `generate_answer` content, or
   `generate_query` content in the direct-answer case) and
   `[HumanMessage(q), AIMessage(answer)]` is appended to the session memory
@@ -472,12 +476,15 @@ the Postgres connection string is `config.DATABASE_URL`.
 only checked `uploads/`, so `data/local/` files 404'd on delete). Upload and
 delete both set `_index_dirty=True`, so the next chat triggers a rebuild.
 
-**6h. Frontend.** `GET /` returns `templates/index.html` — a dark-themed
-single-page UI that streams the SSE events into per-node panels. On first load
-a `session_id` is generated and persisted in `localStorage` (per-tab, survives
-reload). Each chat request sends the id so the server can retrieve the session's
-conversation history. A "Clear chat" button calls `POST /api/clear` and resets
-the DOM.
+**6h. Frontend.** `GET /` returns `templates/index.html` — a dark-themed chat
+app.  Messages appear as bubbles (user right, assistant left) with markdown +
+LaTeX rendering (via marked + KaTeX).  A sidebar lists past conversation
+sessions (click to switch) and uploaded files.  During streaming each pipeline
+node appears in real time inside a collapsible detail under the answer.  A
+**Fast mode** toggle skips the reasoning chain (`clarify` / `grade` / `reason` /
+`verify`) and runs `generate_query → retrieve → generate_answer`.  A **Stop**
+button cancels in-flight generation, and a **Copy** button copies answers.
+`session_id` is persisted in `localStorage`.
 
 ### Step 7 — The CLI
 
@@ -662,6 +669,17 @@ python run.py "What is a topological space?"
 
 Drop documents into `data/local/` or upload via the UI. Without keys the server
 still boots — upload files, set keys, click **Re-index**.
+
+### Docker
+
+```bash
+cp .env.docker.example .env      # fill in API keys
+docker compose --env-file .env up --build
+# → http://localhost:8000
+```
+
+PostgreSQL is included as a companion container.  The `Dockerfile` uses a
+cache-optimised layer order (`COPY requirements.txt` → `pip install` → `COPY .`).
 
 ### Logs
 
