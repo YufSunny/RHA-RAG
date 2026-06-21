@@ -34,3 +34,5 @@ milvus.db
 # Environment
 .env
 .env.local
+
+.pid
